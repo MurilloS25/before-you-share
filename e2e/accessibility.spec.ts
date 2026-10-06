@@ -40,7 +40,7 @@ test.describe('axe (WCAG 2.x A/AA and best practice) on every state', () => {
 
     await reachResultWithCopy(page);
     await axe(page, 'jpeg result');
-    await page.getByRole('button', { name: 'Make experimental copy' }).click();
+    await page.getByRole('button', { name: 'Create experimental copy' }).click();
     await expect(page.locator('.verdict')).toBeVisible({ timeout: 30_000 });
     await axe(page, 'verification');
     await page.getByRole('button', { name: 'Clear and start over' }).last().click();
@@ -92,7 +92,10 @@ test.describe('keyboard and focus', () => {
     // Focus moves to the result heading so assistive technology starts at the new content.
     await expect(page.getByRole('heading', { level: 1, name: 'Inspection result' })).toBeFocused();
 
-    // Tab to the checkboxes and operate them with Space, then make the copy with Enter.
+    // Open the options with the keyboard, operate the checkboxes with Space, then make the copy with Enter.
+    await page.getByRole('button', { name: 'Choose what to remove' }).focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#copy-h')).toBeFocused();
     const checkbox = page.getByLabel(/^Text entries and XMP/);
     await checkbox.focus();
     await page.keyboard.press('Space');
@@ -101,12 +104,15 @@ test.describe('keyboard and focus', () => {
     await expect(checkbox).toBeChecked();
     const outline = await checkbox.evaluate((el) => getComputedStyle(el).outlineStyle);
     expect(outline).not.toBe('none');
-    const make = page.getByRole('button', { name: 'Make experimental copy' });
+    const make = page.getByRole('button', { name: 'Create copy with these choices' });
     await make.focus();
     await page.keyboard.press('Enter');
     await expect(page.locator('.verdict')).toBeVisible({ timeout: 30_000 });
 
-    // Disclosure widgets are keyboard operable.
+    // The technical report and its disclosure widgets are keyboard operable.
+    await page.locator('#report-toggle').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#report-h')).toBeFocused();
     const summary = page.locator('li.finding summary').first();
     await summary.focus();
     await page.keyboard.press('Enter');
@@ -143,7 +149,7 @@ test.describe('keyboard and focus', () => {
       bytes,
     );
     await waitForResult(page);
-    await expect(page.getByText('0.250000° N, 0.750000° E')).toBeVisible();
+    await expect(page.locator('#before-share').getByText('An exact location', { exact: true })).toBeVisible();
     expectClean(w);
   });
 });
@@ -164,7 +170,7 @@ test.describe('layout, zoom and motion', () => {
       await page.evaluate(() => document.querySelectorAll('details').forEach((d) => (d.open = true)));
       await noHorizontalScroll(page);
       await axe(page, `result ${width}`);
-      await page.getByRole('button', { name: 'Make experimental copy' }).click();
+      await page.getByRole('button', { name: 'Create experimental copy' }).click();
       await expect(page.locator('.verdict')).toBeVisible({ timeout: 30_000 });
       await page.evaluate(() => document.querySelectorAll('details').forEach((d) => (d.open = true)));
       await noHorizontalScroll(page);
@@ -210,6 +216,7 @@ test.describe('layout, zoom and motion', () => {
     await openApp(page);
     await chooseFile(page, fx('jpeg-kitchen-sink.jpg'));
     await waitForResult(page);
+    await page.locator('#report-toggle').click();
     const statuses = await page.locator('.status').evaluateAll((els) => els.map((e) => e.textContent?.trim() ?? ''));
     expect(statuses.length).toBeGreaterThan(5);
     for (const s of statuses) expect(s).toMatch(/Verified|Inferred|Suspicious|Not supported|Unavailable/);

@@ -1,18 +1,19 @@
 import { expect, test } from '@playwright/test';
-import { chooseFile, expectClean, fx, openApp, waitForResult } from './support';
+import { chooseFile, expectClean, fx, openApp, openReport, waitForResult } from './support';
 
 test.describe('DOCX (inspection only)', () => {
   test('properties, comments and tracked changes are listed; no copy, no preview, nothing leaves the page', async ({ page }) => {
     const w = await openApp(page);
     await chooseFile(page, fx('docx-comments-tracked.docx'));
     await waitForResult(page);
+    await openReport(page);
     await expect(page.getByText('Word document (DOCX)').first()).toBeVisible();
     await expect(page.getByText('Example Person')).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Tracked changes' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Comment authors' })).toBeVisible();
     await expect(page.getByText('Second Reviewer').first()).toBeVisible();
-    await expect(page.getByText('Copies are not offered for DOCX files')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Make experimental copy' })).toHaveCount(0);
+    await expect(page.locator('#before-share')).toContainText('This tool can only inspect DOCX files. It does not offer a modified copy.');
+    await expect(page.getByRole('button', { name: 'Create experimental copy' })).toHaveCount(0);
     await expect(page.locator('img')).toHaveCount(0);
     // The comment and deleted text are never shown.
     await expect(page.locator('main')).not.toContainText('Synthetic comment one');
@@ -25,6 +26,7 @@ test.describe('DOCX (inspection only)', () => {
     const w = await openApp(page);
     await chooseFile(page, fx('docx-embedded.docx'));
     await waitForResult(page);
+    await openReport(page);
     await expect(page.getByText(/file:\/\/\/C:\/Users\/ExamplePerson\/Templates\/Fixture\.dotm/)).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Embedded media' })).toBeVisible();
     const hrefs = await page.locator('main a[href]').evaluateAll((els) => els.map((e) => e.getAttribute('href')));
@@ -36,6 +38,7 @@ test.describe('DOCX (inspection only)', () => {
     const w = await openApp(page);
     await chooseFile(page, fx('docx-macro.docx'));
     await waitForResult(page);
+    await openReport(page);
     await expect(page.getByRole('heading', { name: 'Macros' })).toBeVisible();
     await expect(page.locator('.finding-why', { hasText: /never runs it/ })).toBeVisible();
     expectClean(w);
@@ -46,6 +49,7 @@ test.describe('DOCX (inspection only)', () => {
     const t = Date.now();
     await chooseFile(page, fx('docx-zipbomb.docx'));
     await waitForResult(page);
+    await openReport(page);
     expect(Date.now() - t).toBeLessThan(8000);
     await expect(page.getByText(/compression bomb/)).toBeVisible();
     expectClean(w);
@@ -55,6 +59,7 @@ test.describe('DOCX (inspection only)', () => {
     const w = await openApp(page);
     await chooseFile(page, fx('docx-hostile-metadata.docx'));
     await waitForResult(page);
+    await openReport(page);
     await expect(page.locator('main')).toContainText('<script>');
     await expect(page.locator('main script')).toHaveCount(0);
     await expect(page.locator('main img[src="x"]')).toHaveCount(0);
@@ -78,6 +83,7 @@ test.describe('DOCX (inspection only)', () => {
     const w = await openApp(page);
     await chooseFile(page, fx('docx-fake-extension.png'));
     await waitForResult(page);
+    await openReport(page);
     await expect(page.getByText('File name or declared type does not match the content')).toBeVisible();
     expectClean(w);
   });

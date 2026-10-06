@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import { analyseBytes } from '../src/core/analyze';
-import { chooseFile, cleanupTempFiles, expectClean, fx, openApp, tempFile, urlCounts, waitForResult } from './support';
+import { chooseFile, chooseWhatToRemove, cleanupTempFiles, expectClean, fx, openApp, openReport, tempFile, urlCounts, waitForResult } from './support';
 
 test.afterEach(() => cleanupTempFiles());
 
@@ -22,9 +22,14 @@ test.describe('JPEG', () => {
 
     await chooseFile(page, fx('jpeg-kitchen-sink.jpg'));
     await waitForResult(page);
+    // The default view is the simple answer; the technical report is closed.
+    await expect(page.locator('#before-share').getByText('An exact location', { exact: true })).toBeVisible();
+    await expect(page.locator('li.finding')).toHaveCount(0);
+    await expect(page.locator('#report-toggle')).toHaveAttribute('aria-expanded', 'false');
+    await openReport(page);
     await expect(page.getByText('0.250000° N, 0.750000° E')).toBeVisible();
     await expect(page.getByRole('heading', { level: 2, name: /^Location/ })).toBeVisible();
-    await expect(page.getByText('Example Maker')).toBeVisible();
+    await expect(page.getByText('Example Maker', { exact: true })).toBeVisible();
     // Evidence is expandable and states the byte range.
     const gps = page.locator('li.finding', { hasText: 'GPS position' });
     await gps.getByText('Evidence and limits').click();
@@ -37,15 +42,20 @@ test.describe('JPEG', () => {
     expect(await page.locator('.original-preview img').evaluate((i: HTMLImageElement) => i.complete && i.naturalWidth > 0)).toBe(true);
 
     // Defaults: metadata groups on, structures we cannot judge off.
+    await chooseWhatToRemove(page);
     await expect(page.getByLabel(/^EXIF data/)).toBeChecked();
     await expect(page.getByLabel(/^Other application segments/)).not.toBeChecked();
     await expect(page.getByLabel(/^Data after the end of the image/)).not.toBeChecked();
     await expect(page.getByText('Always kept')).toBeVisible();
 
-    await page.getByRole('button', { name: 'Make experimental copy' }).click();
+    // One click creates the copy with the recommended choices (the same single selection as the panel).
+    await page.getByRole('button', { name: 'Create experimental copy' }).click();
     await expect(page.getByRole('heading', { level: 2, name: 'Experimental copy, re-inspected' })).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('#verify-h')).toBeFocused();
     await expect(page.locator('.verdict[data-ok="true"]')).toContainText('Other hidden information may remain');
-    // Every check passed, including the browser decode comparison.
+    // The ten checks are folded until opened; every one passed, including the browser decode comparison.
+    await expect(page.locator('.checks li')).toHaveCount(0);
+    await page.getByText(/All 10 verification checks/).click();
     const checks = page.locator('.checks li');
     await expect(checks).toHaveCount(10);
     await expect(page.locator('.checks li[data-status="fail"]')).toHaveCount(0);
@@ -88,9 +98,10 @@ test.describe('JPEG', () => {
     const w = await openApp(page);
     await chooseFile(page, fx('jpeg-kitchen-sink.jpg'));
     await waitForResult(page);
+    await chooseWhatToRemove(page);
     await page.getByLabel(/^Data after the end of the image/).check();
     await page.getByLabel(/^Other application segments/).check();
-    await page.getByRole('button', { name: 'Make experimental copy' }).click();
+    await page.getByRole('button', { name: 'Create copy with these choices' }).click();
     await expect(page.locator('.verdict[data-ok="true"]')).toBeVisible({ timeout: 30_000 });
     const d = page.waitForEvent('download');
     await page.getByRole('button', { name: 'Download experimental copy' }).click();
@@ -103,8 +114,8 @@ test.describe('JPEG', () => {
     const w = await openApp(page);
     await chooseFile(page, fx('jpeg-clean.jpg'));
     await waitForResult(page);
-    await expect(page.locator('.copy-panel').getByText('Nothing that this tool can remove was found')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Make experimental copy' })).toHaveCount(0);
+    await expect(page.locator('#before-share').getByText(/Nothing that this tool can remove was found, so there is no copy to make/)).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Create experimental copy' })).toHaveCount(0);
     expectClean(w);
   });
 
@@ -112,8 +123,9 @@ test.describe('JPEG', () => {
     const w = await openApp(page);
     await chooseFile(page, fx('jpeg-truncated.jpg'));
     await waitForResult(page);
+    await expect(page.locator('#before-share').getByText(/No copy is offered for this file/)).toBeVisible();
+    await openReport(page);
     await expect(page.getByText('JPEG ends unexpectedly')).toBeVisible();
-    await expect(page.locator('.copy-panel').getByText(/No copy is offered for this file/)).toBeVisible();
     expectClean(w);
   });
 
@@ -121,9 +133,10 @@ test.describe('JPEG', () => {
     const w = await openApp(page);
     await chooseFile(page, fx('jpeg-extreme-dimensions.jpg'));
     await waitForResult(page);
-    await expect(page.getByText('Very large declared image size')).toBeVisible();
+    await expect(page.locator('#before-share').getByText(/No copy is offered/)).toBeVisible();
     await expect(page.locator('.original-preview')).toHaveCount(0);
-    await expect(page.locator('.copy-panel').getByText(/No copy is offered/)).toBeVisible();
+    await openReport(page);
+    await expect(page.getByText('Very large declared image size')).toBeVisible();
     expectClean(w);
   });
 });
@@ -134,11 +147,12 @@ test.describe('PNG', () => {
     const loaded = w.mark();
     await chooseFile(page, fx('png-kitchen-sink.png'));
     await waitForResult(page);
+    await openReport(page);
     await expect(page.getByText('Example Person').first()).toBeVisible();
     await expect(page.getByText('Título ✓')).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Data after IEND' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Unrecognised chunk' })).toBeVisible();
-    await page.getByRole('button', { name: 'Make experimental copy' }).click();
+    await page.getByRole('button', { name: 'Create experimental copy' }).click();
     await expect(page.locator('.verdict[data-ok="true"]')).toBeVisible({ timeout: 30_000 });
     await expect(page.locator('.checks li[data-status="fail"]')).toHaveCount(0);
     const d = page.waitForEvent('download');
@@ -161,12 +175,13 @@ test.describe('PDF', () => {
     const loaded = w.mark();
     await chooseFile(page, fx('pdf-basic.pdf'));
     await waitForResult(page);
+    await expect(page.locator('#before-share')).toContainText('This tool can only inspect PDF files. It does not offer a modified copy.');
+    await openReport(page);
     await expect(page.getByText('Fixture Document')).toBeVisible();
     await expect(page.getByText('Example Person')).toBeVisible();
     await expect(page.getByText('2000-01-01 00:00:00 UTC').first()).toBeVisible();
     await expect(page.getByText('00112233445566778899aabbccddeeff')).toBeVisible();
-    await expect(page.getByText('Copies are not offered for PDF files')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Make experimental copy' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Create experimental copy' })).toHaveCount(0);
     await page.getByRole('button', { name: 'Show page 1 as a picture' }).click();
     const img = page.locator('.pdf-preview img');
     await expect(img).toBeVisible({ timeout: 30_000 });
@@ -179,11 +194,13 @@ test.describe('PDF', () => {
     const w = await openApp(page);
     await chooseFile(page, fx('pdf-javascript.pdf'));
     await waitForResult(page);
+    await openReport(page);
     await expect(page.getByText('JavaScript or scripted action')).toBeVisible();
     await expect(page.locator('.finding-why', { hasText: /never runs them/ })).toBeVisible();
     await page.getByRole('button', { name: 'Clear and start over' }).first().click();
     await chooseFile(page, fx('pdf-link-actions.pdf'));
     await waitForResult(page);
+    await openReport(page);
     await expect(page.getByText('https://example.invalid/fixture')).toBeVisible();
     await expect(page.getByRole('link')).not.toContainText(['example.invalid']); // links in a PDF are text here, never anchors
     expectClean(w);
@@ -193,6 +210,7 @@ test.describe('PDF', () => {
     const w = await openApp(page);
     await chooseFile(page, fx('pdf-encrypted.pdf'));
     await waitForResult(page);
+    await openReport(page);
     await expect(page.getByText('A password is required to open this document')).toBeVisible();
     await page.getByRole('button', { name: 'Show page 1 as a picture' }).click();
     await expect(page.getByText(/could not be drawn/)).toBeVisible({ timeout: 30_000 });
@@ -203,6 +221,7 @@ test.describe('PDF', () => {
     const w = await openApp(page);
     await chooseFile(page, fx('pdf-truncated.pdf'));
     await waitForResult(page);
+    await openReport(page);
     await expect(page.getByText('PDF could not be fully parsed')).toBeVisible();
     await expect(page.getByText('PDF ends unexpectedly')).toBeVisible();
     expectClean(w);
@@ -226,6 +245,7 @@ test.describe('unsupported, mismatched and refused files', () => {
     const w = await openApp(page);
     await chooseFile(page, fx('jpeg-fake-extension.png'));
     await waitForResult(page);
+    await openReport(page);
     await expect(page.getByText('JPEG image').first()).toBeVisible();
     await expect(page.getByText('File name or declared type does not match the content')).toBeVisible();
     await expect(page.getByText(/the file name ends in “\.png”/)).toBeVisible();
@@ -279,6 +299,7 @@ test.describe('cancellation, succession and reset', () => {
     // A new file is analysed normally on a fresh worker.
     await chooseFile(page, fx('jpeg-gps.jpg'));
     await waitForResult(page);
+    await openReport(page);
     await expect(page.getByText('0.250000° N, 0.750000° E')).toBeVisible();
     expectClean(w, loaded);
   });
@@ -291,6 +312,7 @@ test.describe('cancellation, succession and reset', () => {
     await page.getByRole('button', { name: 'Clear and start over' }).click();
     await chooseFile(page, fx('png-text.png'));
     await waitForResult(page);
+    await openReport(page);
     await expect(page.getByText('Synthetic comment')).toBeVisible();
     await page.waitForTimeout(1500); // a late result from the cancelled worker must never replace this one
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Inspection result');
@@ -302,10 +324,12 @@ test.describe('cancellation, succession and reset', () => {
     const w = await openApp(page);
     await chooseFile(page, fx('jpeg-gps.jpg'));
     await waitForResult(page);
+    await openReport(page);
     await expect(page.getByText('Fixture Camera One')).toBeVisible();
     await page.getByRole('button', { name: 'Clear and start over' }).first().click();
     await chooseFile(page, fx('pdf-basic.pdf'));
     await waitForResult(page);
+    await openReport(page);
     await expect(page.getByText('Fixture Document')).toBeVisible();
     await expect(page.getByText('Fixture Camera One')).toHaveCount(0);
     await expect(page.getByText('0.250000')).toHaveCount(0);
@@ -316,7 +340,7 @@ test.describe('cancellation, succession and reset', () => {
     const w = await openApp(page);
     await chooseFile(page, fx('png-text.png'));
     await waitForResult(page);
-    await page.getByRole('button', { name: 'Make experimental copy' }).click();
+    await page.getByRole('button', { name: 'Create experimental copy' }).click();
     await expect(page.locator('.verdict[data-ok="true"]')).toBeVisible({ timeout: 30_000 });
     await page.getByRole('button', { name: 'Clear and start over' }).last().click();
     await expect(page.locator('li.finding')).toHaveCount(0);
@@ -333,6 +357,7 @@ test.describe('hostile content stays inert', () => {
     for (const file of ['jpeg-hostile-metadata.jpg', 'png-hostile-metadata.png', 'pdf-hostile-metadata.pdf']) {
       await chooseFile(page, fx(file));
       await waitForResult(page);
+      await openReport(page);
       await expect(page.locator('main')).toContainText('<script>');
       await expect(page.locator('main script')).toHaveCount(0);
       await expect(page.locator('main img[src="x"]')).toHaveCount(0);
@@ -350,7 +375,7 @@ test.describe('hostile content stays inert', () => {
     await waitForResult(page);
     await expect(page.locator('main img[src="x"]')).toHaveCount(0);
     await expect(page.locator('.user-text', { hasText: '<img src=x' }).first()).toBeVisible();
-    await page.getByRole('button', { name: 'Make experimental copy' }).click();
+    await page.getByRole('button', { name: 'Create experimental copy' }).click();
     await expect(page.locator('.verdict[data-ok="true"]')).toBeVisible({ timeout: 30_000 });
     const d = page.waitForEvent('download');
     await page.getByRole('button', { name: 'Download experimental copy' }).click();

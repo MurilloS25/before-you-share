@@ -19,7 +19,7 @@ test.describe('local-only processing is enforced, not just claimed', () => {
     for (const f of ['jpeg-kitchen-sink.jpg', 'png-kitchen-sink.png']) {
       await chooseFile(page, fx(f));
       await waitForResult(page);
-      await page.getByRole('button', { name: 'Make experimental copy' }).click();
+      await page.getByRole('button', { name: 'Create experimental copy' }).click();
       await expect(page.locator('.verdict[data-ok="true"]')).toBeVisible({ timeout: 30_000 });
       await page.getByRole('button', { name: 'Clear and start over' }).last().click();
     }
@@ -114,7 +114,7 @@ test.describe('local-only processing is enforced, not just claimed', () => {
     await openApp(page);
     await chooseFile(page, fx('jpeg-kitchen-sink.jpg'));
     await waitForResult(page);
-    await page.getByRole('button', { name: 'Make experimental copy' }).click();
+    await page.getByRole('button', { name: 'Create experimental copy' }).click();
     await expect(page.locator('.verdict')).toBeVisible({ timeout: 30_000 });
     await page.getByRole('button', { name: 'Clear and start over' }).last().click();
     await chooseFile(page, fx('pdf-xmp.pdf'));

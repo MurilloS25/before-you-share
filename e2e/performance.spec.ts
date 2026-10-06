@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
 import { baseJpeg, cat, commentSegment, insertSegments } from '../fixtures/lib/jpeg';
 import { buildPng, chunk } from '../fixtures/lib/png';
-import { chooseFile, cleanupTempFiles, expectClean, fx, openApp, tempFile, waitForResult } from './support';
+import { chooseFile, cleanupTempFiles, expectClean, fx, openApp, openReport, tempFile, waitForResult } from './support';
 
 test.afterEach(() => cleanupTempFiles());
 
@@ -75,6 +75,7 @@ test('worker timing for a 40 MiB PNG within the limits', async ({ page }) => {
   await waitForResult(page);
   measurements.png40MiBInspectMs = Date.now() - t;
   expect(measurements.png40MiBInspectMs).toBeLessThan(15_000);
+  await openReport(page);
   await expect(page.getByRole('heading', { name: 'Unrecognised chunk' })).toBeVisible();
 });
 
@@ -95,7 +96,8 @@ test('presenting a 600-finding result keeps the main thread free (250 ms budget)
   await waitForResult(page);
   measurements.jpeg40MiBInspectMs = Date.now() - t;
   expect(measurements.jpeg40MiBInspectMs).toBeLessThan(15_000);
-  await expect(page.getByRole('heading', { name: 'Further findings were not listed' })).toBeVisible();
+  // The technical report is closed: the screen is the simple view and holds no finding list at all.
+  await expect(page.locator('#report-body')).toHaveCount(0);
   // let layout, image decoding and effects settle; this is a wait for the browser, not a way to hide the render
   await page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
   await page.waitForTimeout(400);
@@ -110,14 +112,27 @@ test('presenting a 600-finding result keeps the main thread free (250 ms budget)
   const rendered = await page.locator('li.finding').count();
   measurements.presentationDomNodes = nodes;
   measurements.presentationRenderedFindings = rendered;
-  expect(rendered).toBeLessThan(40);
-  expect(nodes).toBeLessThan(1500);
+  expect(rendered).toBe(0);
+  expect(nodes).toBeLessThan(450);
+
+  // Opening the report is an explicit user action; it builds the bounded list (10 per category) and is measured too.
+  await installLagProbe(page);
+  await page.locator('#report-toggle').click();
+  await expect(page.getByRole('heading', { name: 'Further findings were not listed' })).toBeVisible();
   await expect(page.getByText(/Showing 10 of 599 findings/)).toBeVisible();
+  await page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
+  await page.waitForTimeout(300);
+  const opened = await readLag(page);
+  measurements.openReportMaxGapMs = opened.gap;
+  measurements.openReportLongTaskMs = opened.longTask;
+  measurements.openReportDomNodes = await page.evaluate(() => document.querySelectorAll('*').length);
+  expect(opened.longTask).toBeLessThan(250);
+  expect(measurements.openReportDomNodes).toBeLessThan(1500);
 
   // Revealing everything is an explicit user action; it is measured too and must stay interactive.
   await installLagProbe(page);
   await page.getByRole('button', { name: /Show all 589 remaining/ }).click();
-  await expect(page.locator('li.finding')).toHaveCount(599 + (rendered - 10));
+  await expect(page.locator('section[data-category="document-properties"] li.finding')).toHaveCount(599);
   const reveal = await readLag(page);
   measurements.revealAllMaxGapMs = reveal.gap;
   measurements.revealAllLongTaskMs = reveal.longTask;
@@ -125,7 +140,7 @@ test('presenting a 600-finding result keeps the main thread free (250 ms budget)
 
   // With all 599 findings on screen, moving between them must not re-render the list (highlighting is delegated and memoised).
   await installLagProbe(page);
-  const items = page.locator('[data-category="document-properties"] li.finding');
+  const items = page.locator('section[data-category="document-properties"] li.finding');
   for (const i of [5, 120, 300, 480, 598, 40, 220]) await items.nth(i).hover();
   await page.waitForTimeout(150);
   const hover = await readLag(page);
@@ -158,8 +173,9 @@ test('copy and verification of a large PNG completes and releases memory on rese
     await chooseFile(page, file);
     await waitForResult(page);
     const t = Date.now();
+    await page.getByRole('button', { name: 'Choose what to remove' }).click();
     await page.getByLabel(/^Unrecognised ancillary chunks/).check();
-    await page.getByRole('button', { name: 'Make experimental copy' }).click();
+    await page.getByRole('button', { name: 'Create copy with these choices' }).click();
     await expect(page.locator('.verdict')).toBeVisible({ timeout: 40_000 });
     measurements.copy30MiBPngMs = Date.now() - t;
     await page.getByRole('button', { name: 'Clear and start over' }).last().click();

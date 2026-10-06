@@ -123,3 +123,16 @@ export function expectClean(w: Watch, mark = w.loadMark): void {
   expect(w.dialogs).toEqual([]);
   expect(w.unexpected(mark)).toEqual([]);
 }
+
+/** Open the technical report (closed by default) and wait for it to be built. */
+export async function openReport(page: Page): Promise<void> {
+  const toggle = page.locator('#report-toggle');
+  if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click();
+  await expect(page.locator('#report-body')).toBeVisible();
+}
+
+/** Open the (closed) copy options panel. */
+export async function chooseWhatToRemove(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'Choose what to remove' }).click();
+  await expect(page.locator('#copy-section')).toBeVisible();
+}

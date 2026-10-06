@@ -1,13 +1,19 @@
 import AxeBuilder from '@axe-core/playwright';
+import { randomBytes } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
+import { analyseBytes } from '../src/core/analyze';
 import { baseJpeg, cat, commentSegment, insertSegments } from '../fixtures/lib/jpeg';
-import { chooseFile, cleanupTempFiles, expectClean, fx, openApp, tempFile, waitForResult } from './support';
+import { buildPng, chunk } from '../fixtures/lib/png';
+import { chooseFile, chooseWhatToRemove, cleanupTempFiles, expectClean, fx, openApp, openReport, tempFile, waitForResult } from './support';
 
 test.afterEach(() => cleanupTempFiles());
 
 const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'];
+const measurements: Record<string, number> = {};
+test.afterAll(() => console.log('LAYOUT', JSON.stringify(measurements)));
 
-/** Open every disclosure the way a person would (the lazy ones build their content on the toggle event) and let it render. */
+/** Open every native disclosure the way a person would (lazy ones build on the toggle event) and let it render. */
 async function openAll(page: Page): Promise<void> {
   await page.evaluate(
     () =>
@@ -24,10 +30,16 @@ async function axe(page: Page, label: string): Promise<void> {
 async function noSideScroll(page: Page): Promise<void> {
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
 }
+const height = (page: Page): Promise<number> => page.evaluate(() => document.documentElement.scrollHeight);
 const manyComments = (n: number): Buffer => Buffer.from(cat(insertSegments(baseJpeg(), Array.from({ length: n }, (_, i) => commentSegment(`synthetic comment ${i}`)))));
+const analyse = async (bytes: Uint8Array) => {
+  const out = await analyseBytes(bytes, { name: 'x', type: '' });
+  if (!out.supported) throw new Error('unsupported');
+  return out.report;
+};
 
-test.describe('"Before you share"', () => {
-  test('says what a GPS photo contains and the action jumps to the copy panel with focus', async ({ page }) => {
+test.describe('simple result and the one-click copy', () => {
+  test('GPS photo: the simple answer first, report closed, one click creates the copy and the result is compact', async ({ page }) => {
     const w = await openApp(page);
     await chooseFile(page, fx('jpeg-gps.jpg'));
     await waitForResult(page);
@@ -35,200 +47,261 @@ test.describe('"Before you share"', () => {
     await expect(block.getByRole('heading', { level: 2, name: 'Before you share' })).toBeVisible();
     await expect(block.getByText('An exact location', { exact: true })).toBeVisible();
     await expect(block.getByText(/GPS coordinates that can point to where it was taken/)).toBeVisible();
+    await expect(block).toContainText(/Common data is not automatically a problem, and other hidden information may remain/);
+    await expect(block).toContainText(/5 areas were only partly checked or not checked/);
+    await expect(block).toContainText(/your original is not changed/i);
     await expect(block).not.toContainText(/score|risk|safe|clean|anonymous/i);
-    // The block comes before the long findings list and well before the copy panel.
-    const order = await page.evaluate(() => {
-      const y = (sel: string) => document.querySelector(sel)!.getBoundingClientRect().top + window.scrollY;
-      return { block: y('#before-share'), findings: y('#findings-h'), copy: y('#copy-h') };
-    });
-    expect(order.block).toBeLessThan(order.findings);
-    expect(order.findings).toBeLessThan(order.copy);
+    await expect(page.locator('li.finding')).toHaveCount(0);
+    await expect(page.locator('code.hash')).toHaveCount(0);
+    await expect(page.locator('#report-toggle')).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.locator('.original-preview img')).toBeVisible();
+    measurements.nodesSimple = await page.evaluate(() => document.querySelectorAll('*').length);
+    expect(measurements.nodesSimple).toBeLessThan(400);
+    await expect(page.locator('#copy-section')).toHaveCount(0);
+    await expect(page.getByRole('checkbox')).toHaveCount(0);
 
-    const before = await page.evaluate(() => window.scrollY);
-    await block.getByRole('button', { name: 'Review copy options' }).click();
-    await expect(page.locator('#copy-h')).toBeFocused();
-    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(before);
-    // the smooth scroll settles with the heading near the top of the viewport
-    await expect.poll(async () => (await page.locator('#copy-h').boundingBox())!.y, { timeout: 5000 }).toBeLessThan(120);
-    expect((await page.locator('#copy-h').boundingBox())!.y).toBeGreaterThanOrEqual(-1);
-    // One selection only: the block holds no checkboxes.
-    expect(await block.getByRole('checkbox').count()).toBe(0);
-    expect(await page.getByRole('checkbox').count()).toBeGreaterThan(0);
+    await block.getByRole('button', { name: 'Create experimental copy' }).click();
+    await expect(page.locator('.verdict[data-ok="true"]')).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('#verify-h')).toBeFocused();
+    const verification = page.locator('#verification');
+    await expect(verification.locator('.compare img')).toHaveCount(2);
+    await expect(verification.getByRole('button', { name: 'Download experimental copy' })).toBeVisible();
+    await expect(verification.getByText(/^No longer detected \(\d+\)/)).toBeVisible();
+    await expect(verification.getByText(/^Still detected \(\d+\)/)).toBeVisible();
+    await expect(verification).toContainText(/Open and check this copy before sharing it, and keep your original/);
+    await expect(verification).toContainText('Other hidden information may remain');
+    await expect(page.locator('.checks li')).toHaveCount(0);
+    await expect(verification.locator('table')).toHaveCount(0);
+    await page.getByText(/All 10 verification checks/).click();
+    await expect(page.locator('.checks li')).toHaveCount(10);
+    await expect(page.locator('.checks li[data-status="fail"]')).toHaveCount(0);
+    await expect(verification.getByRole('table', { name: 'Original and experimental copy compared' })).toBeVisible();
+    await page.locator('.manifest summary').click();
+    await expect(page.locator('.manifest table')).toBeVisible();
     expectClean(w);
   });
 
-  test('keyboard: Tab reaches the action, Enter moves focus to the canonical panel, Space toggles its options', async ({ page }) => {
-    await openApp(page);
-    await chooseFile(page, fx('png-kitchen-sink.png'));
+  test('"Choose what to remove" reveals the single canonical panel, moves focus there, and the choice drives the copy', async ({ page }) => {
+    const w = await openApp(page);
+    await chooseFile(page, fx('jpeg-kitchen-sink.jpg'));
     await waitForResult(page);
-    const action = page.getByRole('button', { name: 'Review copy options' });
-    await action.focus();
-    const ring = await action.evaluate((e) => getComputedStyle(e).outlineStyle);
-    expect(ring).not.toBe('none');
-    await page.keyboard.press('Enter');
+    const choose = page.getByRole('button', { name: 'Choose what to remove' });
+    await expect(choose).toHaveAttribute('aria-expanded', 'false');
+    await choose.click();
     await expect(page.locator('#copy-h')).toBeFocused();
-    await page.keyboard.press('Tab');
-    const focused = await page.evaluate(() => (document.activeElement as HTMLInputElement | null)?.type);
-    expect(focused).toBe('checkbox');
-    const box = page.locator('.options input[type=checkbox]').first();
-    const was = await box.isChecked();
-    await page.keyboard.press('Space');
-    expect(await box.isChecked()).toBe(!was);
-    // category links move focus as well as scroll
-    await page.locator('.category-nav a').first().focus();
-    await page.keyboard.press('Enter');
-    await expect(page.locator('h2[id^="cat-h-"]:focus')).toHaveCount(1);
+    await expect(choose).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.getByText('Always kept')).toBeVisible();
+    await expect(page.getByLabel(/^EXIF data/)).toBeChecked();
+    await expect(page.getByLabel(/^Data after the end of the image/)).not.toBeChecked();
+    await page.getByLabel(/^Data after the end of the image/).check();
+    await expect(page.locator('#before-share')).toContainText(/Selected for removal: .*data after the end of the image/i);
+    await page.getByRole('button', { name: 'Create copy with these choices' }).click();
+    await expect(page.locator('.verdict[data-ok="true"]')).toBeVisible({ timeout: 30_000 });
+    const d = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Download experimental copy' }).click();
+    const copy = await analyse(readFileSync((await (await d).path())!));
+    expect(copy.findings.some((f) => f.code.includes('trailing'))).toBe(false);
+    await page.getByRole('button', { name: 'Change what to remove' }).click();
+    await expect(page.locator('#copy-h')).toBeFocused();
+    await expect(page.locator('.verdict')).toHaveCount(0);
+    expectClean(w);
   });
 
-  test('PDF and DOCX: an honest sentence, no copy action', async ({ page }) => {
+  test('the full technical report is not built until opened; opening moves focus; bounded lists and Show more inside', async ({ page }) => {
+    const w = await openApp(page);
+    await chooseFile(page, tempFile('many.jpg', manyComments(700)));
+    await waitForResult(page);
+    expect(await page.evaluate(() => document.querySelectorAll('*').length)).toBeLessThan(450);
+    await expect(page.locator('#report-body')).toHaveCount(0);
+    await expect(page.locator('li.finding')).toHaveCount(0);
+    await page.locator('#before-share').getByRole('button', { name: 'View full technical report' }).click();
+    await expect(page.locator('#report-h')).toBeFocused();
+    const section = page.locator('section[data-category="document-properties"]');
+    await expect(section.locator('li.finding')).toHaveCount(10);
+    await expect(section.getByRole('status')).toContainText(/Showing 10 of \d+ findings/);
+    await section.getByRole('button', { name: /^Show \d+ more/ }).click();
+    expect(await section.locator('li.finding').count()).toBeGreaterThan(10);
+    await section.getByRole('button', { name: /^Show all/ }).click();
+    await expect(section.locator('li.finding')).toHaveCount(599);
+    await page.locator('#report-toggle').click();
+    await expect(page.locator('#report-body')).toHaveCount(0);
+    await expect(page.locator('li.finding')).toHaveCount(0);
+    await expect(page.locator('#report-toggle')).toBeFocused();
+    await page.locator('#report-toggle').click();
+    await expect(page.locator('section[data-category="document-properties"] li.finding')).toHaveCount(10);
+    expectClean(w);
+  });
+
+  test('the coverage summary is always on the simple view and leads to the detailed coverage', async ({ page }) => {
+    await openApp(page);
+    await chooseFile(page, fx('jpeg-kitchen-sink.jpg'));
+    await waitForResult(page);
+    await expect(page.locator('.coverage-line')).toContainText('only partly checked or not checked');
+    await page.getByRole('button', { name: 'See what was not checked' }).click();
+    await expect(page.locator('#coverage-h')).toBeFocused();
+  });
+
+  test('PDF and DOCX: summary and honest sentence, no copy action, preview optional, report available', async ({ page }) => {
     const w = await openApp(page);
     for (const [file, kind] of [['pdf-basic.pdf', 'PDF'], ['docx-comments-tracked.docx', 'DOCX']] as const) {
       await chooseFile(page, fx(file));
       await waitForResult(page);
       const block = page.locator('#before-share');
       await expect(block).toContainText(`This tool can only inspect ${kind} files. It does not offer a modified copy.`);
-      await expect(block.getByRole('button', { name: 'Review copy options' })).toHaveCount(0);
-      await expect(page.getByRole('button', { name: 'Make experimental copy' })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Create experimental copy' })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Choose what to remove' })).toHaveCount(0);
+      await expect(page.locator('#report-body')).toHaveCount(0);
+      if (kind === 'PDF') await expect(page.locator('.pdf-preview img')).toHaveCount(0);
+      else await expect(page.getByText(/No preview is shown for Word documents/)).toBeVisible();
+      await block.getByRole('button', { name: 'View full technical report' }).click();
+      await expect(page.locator('#report-body')).toBeVisible();
       await page.getByRole('button', { name: 'Clear and start over' }).first().click();
     }
     expectClean(w);
   });
 
-  test('nothing removable: no misleading action; active content is described calmly', async ({ page }) => {
+  test('nothing removable: no copy button, the report stays available, the file is not called clean', async ({ page }) => {
     const w = await openApp(page);
     await chooseFile(page, fx('jpeg-clean.jpg'));
     await waitForResult(page);
-    await expect(page.locator('#before-share')).toContainText('Nothing that this tool can remove was found, so there is no copy to make.');
-    await expect(page.getByRole('button', { name: 'Review copy options' })).toHaveCount(0);
-    await page.getByRole('button', { name: 'Clear and start over' }).first().click();
-    await chooseFile(page, fx('pdf-javascript.pdf'));
-    await waitForResult(page);
-    await expect(page.locator('#before-share')).toContainText('This tool never runs them, and their presence is not evidence of harm.');
+    const block = page.locator('#before-share');
+    await expect(block).toContainText('Nothing that this tool can remove was found, so there is no copy to make. Other hidden information may still be present.');
+    await expect(block.locator('.recommend')).not.toContainText(/clean|safe/i);
+    await expect(page.getByRole('button', { name: 'Create experimental copy' })).toHaveCount(0);
+    await expect(block.getByRole('button', { name: 'View full technical report' })).toBeVisible();
     expectClean(w);
   });
 
-  test('technical detail is folded but available; coverage is never folded', async ({ page }) => {
+  test('cancelling a copy stops it; a late result never replaces the screen', async ({ page }) => {
+    const w = await openApp(page);
+    const png = Buffer.from(buildPng({ before: [chunk('tEXt', Buffer.from('Comment\0large payload')), chunk('zzZz', randomBytes(30 * 1024 * 1024))] }));
+    await chooseFile(page, tempFile('large.png', png));
+    await waitForResult(page);
+    await page.getByRole('button', { name: 'Create experimental copy' }).click();
+    await page.getByRole('button', { name: 'Cancel' }).click();
+    await expect(page.getByRole('button', { name: 'Create experimental copy' })).toBeEnabled();
+    await page.waitForTimeout(2500);
+    await expect(page.locator('.verdict')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Create experimental copy' }).click();
+    await expect(page.locator('.verdict[data-ok="true"]')).toBeVisible({ timeout: 40_000 });
+    expectClean(w);
+  });
+
+  test('keyboard: Tab reaches the actions, Enter creates the copy and focus lands on the verification', async ({ page }) => {
     await openApp(page);
-    await chooseFile(page, fx('jpeg-kitchen-sink.jpg'));
+    await chooseFile(page, fx('png-text.png'));
     await waitForResult(page);
-    const sha = page.locator('code.hash');
-    await expect(sha).toBeHidden();
-    await page.getByText('Technical details: extension, reported type, SHA-256').click();
-    await expect(sha).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'What this tool did not fully check' })).toBeVisible();
-    expect(await page.locator('.coverage').evaluate((e) => !!e.closest('details'))).toBe(false);
-    await expect(page.locator('.lane')).toHaveCount(0); // the map is built when opened
-    await page.getByText(/Where findings sit in the file/).click();
-    await expect(page.locator('.lane').first()).toBeVisible();
-    // highlighting still works for rendered findings
-    await page.locator('li.finding', { hasText: 'GPS position' }).hover();
-    await expect(page.locator('.tick[data-active]').first()).toBeVisible();
-    // evidence is built when opened
-    expect(await page.locator('dl.evidence').count()).toBe(0);
-    await page.locator('li.finding', { hasText: 'GPS position' }).getByText('Evidence and limits').click();
-    await expect(page.locator('dl.evidence')).toHaveCount(1);
-  });
-});
-
-test.describe('large result lists', () => {
-  test('a bounded first screen, an accessible Show more, and every finding reachable', async ({ page }) => {
-    const w = await openApp(page);
-    await chooseFile(page, tempFile('many.jpg', manyComments(700)));
-    await waitForResult(page);
-    const section = page.locator('[data-category="document-properties"]');
-    await expect(section.locator('li.finding')).toHaveCount(10);
-    await expect(section.getByRole('status')).toHaveText('Showing 10 of 599 findings.');
-    await expect(page.locator('li.finding details[open]')).toHaveCount(0);
-
-    const more = section.getByRole('button', { name: /Show 50 more \(589 remaining\)/ });
-    await expect(more).toHaveAttribute('aria-controls', 'list-document-properties');
-    await more.focus();
+    const create = page.getByRole('button', { name: 'Create experimental copy' });
+    await create.focus();
+    expect(await create.evaluate((e) => getComputedStyle(e).outlineStyle)).not.toBe('none');
+    await page.keyboard.press('Tab');
+    await expect(page.getByRole('button', { name: 'Choose what to remove' })).toBeFocused();
     await page.keyboard.press('Enter');
-    await expect(section.locator('li.finding')).toHaveCount(60);
-    await expect(section.getByRole('status')).toHaveText('Showing 60 of 599 findings.');
-    // focus continues at the first new item
-    await expect(section.locator('li.finding').nth(10)).toBeFocused();
-
-    await section.getByRole('button', { name: 'Show all 539 remaining' }).click();
-    await expect(section.locator('li.finding')).toHaveCount(599);
-    await expect(section.getByRole('status')).toHaveText('Showing 599 of 599 findings.');
-    await expect(section.locator('.showmore button')).toHaveCount(0);
-    // page search: the last comment is now in the document
-    await expect(section.getByText('synthetic comment 598')).toHaveCount(1);
-    expectClean(w);
-  });
-
-  test('a closed structural category mounts nothing; the map highlights rendered items; the copy still verifies', async ({ page }) => {
-    const w = await openApp(page);
-    await chooseFile(page, fx('jpeg-gps.jpg'));
-    await waitForResult(page);
-    await expect(page.locator('[data-category="structural"] li.finding')).toHaveCount(0);
-    await page.locator('[data-category="structural"] summary').click();
-    await expect(page.locator('[data-category="structural"] li.finding').first()).toBeVisible();
-    await page.getByRole('button', { name: 'Make experimental copy' }).click();
-    await expect(page.locator('.verdict[data-ok="true"]')).toBeVisible({ timeout: 30_000 });
-    await expect(page.locator('.checks li')).toHaveCount(10);
-    await expect(page.locator('.checks li[data-status="fail"]')).toHaveCount(0);
-    await page.locator('.manifest summary').click();
-    await expect(page.locator('.manifest table')).toBeVisible();
-    await expect(page.locator('.compare img')).toHaveCount(2);
-    expectClean(w);
+    await expect(page.locator('#copy-h')).toBeFocused();
+    await create.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#verify-h')).toBeFocused({ timeout: 30_000 });
+    await page.locator('#report-toggle').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#report-h')).toBeFocused();
+    await page.locator('#report-toggle').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#report-toggle')).toBeFocused();
   });
 });
 
-test.describe('layout and accessibility of the changed screens', () => {
-  for (const [width, height] of [
+test.describe('how much shorter the page is', () => {
+  test('jpeg-gps.jpg at 1440 x 900 and 390 x 844', async ({ page }) => {
+    for (const [name, w, h] of [['desktop', 1440, 900], ['mobile', 390, 844]] as const) {
+      await page.setViewportSize({ width: w, height: h });
+      await openApp(page);
+      await chooseFile(page, fx('jpeg-gps.jpg'));
+      await waitForResult(page);
+      await page.waitForTimeout(300);
+      measurements[`${name}HeightSimple`] = await height(page);
+      await page.getByRole('button', { name: 'Create experimental copy' }).click();
+      await expect(page.locator('.verdict')).toBeVisible({ timeout: 30_000 });
+      await page.waitForTimeout(300);
+      measurements[`${name}HeightAfterCopy`] = await height(page);
+      await page.locator('#report-toggle').click();
+      await page.waitForTimeout(300);
+      measurements[`${name}HeightReportOpen`] = await height(page);
+      await page.getByRole('button', { name: 'Clear and start over' }).first().click();
+    }
+    // Before this change the same file measured about 4,970 px (desktop) and 7,170 px after the copy.
+    expect(measurements.desktopHeightSimple).toBeLessThan(2000);
+    expect(measurements.desktopHeightAfterCopy).toBeLessThan(3000);
+    expect(measurements.mobileHeightSimple).toBeLessThan(2800);
+    expect(measurements.desktopHeightReportOpen).toBeGreaterThan(measurements.desktopHeightAfterCopy!);
+  });
+});
+
+test.describe('layout and accessibility of the new flow', () => {
+  for (const [width, vh] of [
     [320, 700],
     [390, 800],
     [1440, 900],
   ] as const) {
-    test(`${width}px: no sideways scroll, axe clean, with everything opened and revealed`, async ({ page }) => {
-      await page.setViewportSize({ width, height });
+    test(`${width}px: no sideways scroll and axe clean in every state`, async ({ page }) => {
+      await page.setViewportSize({ width, height: vh });
       await openApp(page);
-      await chooseFile(page, tempFile('many.jpg', manyComments(700)));
-      await waitForResult(page);
-      await noSideScroll(page);
-      await axe(page, `${width} initial`);
-      await page.getByRole('button', { name: /Show 50 more/ }).click();
-      await openAll(page);
-      await noSideScroll(page);
-      await axe(page, `${width} opened and revealed`);
-      await page.getByRole('button', { name: 'Clear and start over' }).first().click();
       await chooseFile(page, fx('jpeg-kitchen-sink.jpg'));
       await waitForResult(page);
-      await openAll(page);
       await noSideScroll(page);
-      await axe(page, `${width} kitchen sink opened`);
-      await page.getByRole('button', { name: 'Review copy options' }).click();
+      await axe(page, `${width} simple`);
+      await chooseWhatToRemove(page);
       await noSideScroll(page);
-      await page.getByRole('button', { name: 'Make experimental copy' }).click();
+      await axe(page, `${width} options`);
+      await page.getByRole('button', { name: 'Create copy with these choices' }).click();
       await expect(page.locator('.verdict')).toBeVisible({ timeout: 30_000 });
+      await noSideScroll(page);
+      await axe(page, `${width} copy result`);
       await openAll(page);
       await noSideScroll(page);
-      await axe(page, `${width} verification opened`);
+      await axe(page, `${width} copy result, everything opened`);
+      await page.locator('#report-toggle').click();
+      await openAll(page);
+      await noSideScroll(page);
+      await axe(page, `${width} report open`);
+      await page.getByRole('button', { name: 'Clear and start over' }).first().click();
+      await chooseFile(page, tempFile('many.jpg', manyComments(700)));
+      await waitForResult(page);
+      await page.locator('#report-toggle').click();
+      await page.getByRole('button', { name: /^Show \d+ more/ }).first().click();
+      await openAll(page);
+      await noSideScroll(page);
+      await axe(page, `${width} large report revealed`);
+      await page.getByRole('button', { name: 'Clear and start over' }).first().click();
+      for (const f of ['pdf-basic.pdf', 'docx-comments-tracked.docx', 'jpeg-clean.jpg']) {
+        await chooseFile(page, fx(f));
+        await waitForResult(page);
+        await noSideScroll(page);
+        await axe(page, `${width} ${f}`);
+        await page.getByRole('button', { name: 'Clear and start over' }).first().click();
+      }
     });
   }
 
-  test('200% text and the equivalent of 400% zoom reflow without sideways scrolling', async ({ browser }) => {
-    const context = await browser.newContext({ bypassCSP: true, viewport: { width: 640, height: 800 } });
-    const page = await context.newPage();
-    await page.goto('http://127.0.0.1:4173/');
-    await page.addStyleTag({ content: 'html { font-size: 200% !important; }' });
+  test('200% text and 320 px reflow without sideways scrolling; nothing is sticky', async ({ page }) => {
+    await page.setViewportSize({ width: 640, height: 800 });
+    await openApp(page);
+    await page.evaluate(() => document.documentElement.style.setProperty('font-size', '200%', 'important'));
     await chooseFile(page, fx('jpeg-kitchen-sink.jpg'));
     await waitForResult(page);
-    await openAll(page);
     await noSideScroll(page);
     await page.setViewportSize({ width: 320, height: 800 });
     await noSideScroll(page);
-    await page.getByRole('button', { name: 'Review copy options' }).click();
+    await chooseWhatToRemove(page);
     await expect(page.locator('#copy-h')).toBeFocused();
+    await page.getByRole('button', { name: 'Create copy with these choices' }).click();
+    await expect(page.locator('.verdict')).toBeVisible({ timeout: 30_000 });
+    await page.locator('#report-toggle').click();
+    await openAll(page);
     await noSideScroll(page);
-    // no sticky or fixed element can cover content at this size
     expect(await page.evaluate(() => [...document.querySelectorAll('*')].filter((e) => ['fixed', 'sticky'].includes(getComputedStyle(e).position)).length)).toBe(0);
-    await context.close();
   });
 
-  test('reduced motion: jumps are instant, nothing animates', async ({ page }) => {
+  test('reduced motion: the jump to the options is instant', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.addInitScript(() => {
       const w = window as unknown as { __scrolls: string[] };
@@ -242,39 +315,29 @@ test.describe('layout and accessibility of the changed screens', () => {
     await openApp(page);
     await chooseFile(page, fx('jpeg-gps.jpg'));
     await waitForResult(page);
-    await page.getByRole('button', { name: 'Review copy options' }).click();
+    await page.getByRole('button', { name: 'Choose what to remove' }).click();
     await expect(page.locator('#copy-h')).toBeFocused();
     expect(await page.evaluate(() => (window as unknown as { __scrolls: string[] }).__scrolls)).toEqual(['auto']);
-    expect(await page.evaluate(() => getComputedStyle(document.querySelector('.scanline') ?? document.body).animationName)).toBe('none');
   });
 
-  test('with motion allowed the jump is smooth', async ({ page }) => {
-    await page.emulateMedia({ reducedMotion: 'no-preference' });
-    await page.addInitScript(() => {
-      const w = window as unknown as { __scrolls: string[] };
-      w.__scrolls = [];
-      const orig = Element.prototype.scrollIntoView;
-      Element.prototype.scrollIntoView = function (arg?: boolean | ScrollIntoViewOptions) {
-        w.__scrolls.push(typeof arg === 'object' && arg ? String(arg.behavior) : 'none');
-        return orig.call(this, arg as ScrollIntoViewOptions);
-      };
-    });
+  test('status is never colour alone inside the report', async ({ page }) => {
     await openApp(page);
-    await chooseFile(page, fx('jpeg-gps.jpg'));
+    await chooseFile(page, fx('jpeg-kitchen-sink.jpg'));
     await waitForResult(page);
-    await page.getByRole('button', { name: 'Review copy options' }).click();
-    await expect(page.locator('#copy-h')).toBeFocused();
-    expect(await page.evaluate(() => (window as unknown as { __scrolls: string[] }).__scrolls)).toEqual(['smooth']);
+    await openReport(page);
+    const statuses = await page.locator('.status').evaluateAll((els) => els.map((e) => e.textContent?.trim() ?? ''));
+    expect(statuses.length).toBeGreaterThan(5);
+    for (const s of statuses) expect(s).toMatch(/Verified|Inferred|Suspicious|Not supported|Unavailable/);
   });
 });
 
-test('the guarantees did not change: only built static files are requested, nothing is stored, the CSP holds', async ({ page, context }) => {
+test('the guarantees did not change: nothing is stored and the CSP holds', async ({ page, context }) => {
   const w = await openApp(page);
   await chooseFile(page, fx('jpeg-kitchen-sink.jpg'));
   await waitForResult(page);
-  await page.getByRole('button', { name: 'Review copy options' }).click();
-  await page.getByRole('button', { name: 'Make experimental copy' }).click();
+  await page.getByRole('button', { name: 'Create experimental copy' }).click();
   await expect(page.locator('.verdict[data-ok="true"]')).toBeVisible({ timeout: 30_000 });
+  await page.locator('#report-toggle').click();
   const state = await page.evaluate(async () => ({
     local: localStorage.length,
     session: sessionStorage.length,

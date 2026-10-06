@@ -91,7 +91,7 @@ describe('a result with the maximum number of findings', () => {
     const { container } = render(<FindingsByCategory findings={report.findings} activeId={null} onActive={() => undefined} />);
     expect(container.querySelectorAll('li.finding').length).toBeLessThan(40);
     expect(container.querySelectorAll('*').length).toBeLessThan(900);
-    const section = container.querySelector('[data-category="document-properties"]') as HTMLElement;
+    const section = container.querySelector('section[data-category="document-properties"]') as HTMLElement;
     expect(within(section).getByRole('status').textContent).toBe(`Showing 10 of ${n} findings.`);
     fireEvent.click(within(section).getByRole('button', { name: `Show all ${n - 10} remaining` }));
     await waitFor(() => expect(section.querySelectorAll('li.finding').length).toBe(n));
