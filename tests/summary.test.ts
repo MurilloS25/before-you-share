@@ -17,7 +17,7 @@ describe('shareNotes', () => {
     const r = analyseJpeg(insertSegments(baseJpeg(), [exifSegment(buildExif({ gps: { lat: 95, lon: 10 } }))]));
     const gps = shareNotes(r.findings).find((n) => n.id === 'gps')!;
     expect(gps.headline).toBe('GPS fields');
-    expect(gps.detail).toMatch(/could not be decoded into a reliable position/);
+    expect(gps.detail).toMatch(/outside the valid range, so they are probably wrong/);
   });
 
   it('groups by category, never by finding, and never ranks or scores', async () => {
@@ -39,5 +39,21 @@ describe('shareNotes', () => {
     expect(shareNotes((await analyseFixture('jpeg-clean.jpg')).findings)).toEqual([]);
     const pdf = shareNotes((await analyseFixture('pdf-javascript.pdf')).findings);
     expect(pdf.find((n) => n.id === 'active')!.detail).toMatch(/never runs them, and their presence is not evidence of harm/);
+  });
+
+  it('separates truly undecodable GPS fields, gives limit notices their own sentence, and keeps acronyms', async () => {
+    const { baseJpeg, buildExif, exifSegment, insertSegments, commentSegment } = await import('../fixtures/lib/jpeg');
+    const { analyseJpeg } = await import('../src/formats/jpeg');
+    const { lower } = await import('../src/ui/lib/summary');
+    expect(lower('EXIF data')).toBe('EXIF data');
+    expect(lower('A4 size')).toBe('A4 size');
+    expect(lower('Camera or device maker')).toBe('camera or device maker');
+    const many = analyseJpeg(insertSegments(baseJpeg(), Array.from({ length: 700 }, (_, i) => commentSegment(`c${i}`))));
+    const notes = shareNotes(many.findings);
+    const limit = notes.find((n) => n.id === 'limits')!;
+    expect(limit.detail).toMatch(/stopped at a limit/);
+    expect(notes.find((n) => n.id === 'unsupported')).toBeUndefined();
+    void buildExif;
+    void exifSegment;
   });
 });

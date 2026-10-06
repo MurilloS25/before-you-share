@@ -1,3 +1,4 @@
+import { memo } from '../lib/memo';
 import { CATEGORY_ORDER, type Category, type Finding } from '../../core/types';
 import { CATEGORY_LABEL, formatBytes, plural } from '../lib/format';
 
@@ -12,7 +13,7 @@ interface Props {
  * mark is a finding whose evidence is a byte range. It shows where hidden items sit relative to the picture or
  * document data. The list below carries the same information as text.
  */
-export function FileMap({ findings, fileSize, activeId }: Props) {
+export const FileMap = memo(function FileMap({ findings, fileSize, activeId }: Props) {
   const located = findings.filter((f) => f.location.kind === 'bytes' && f.location.length > 0);
   const unlocated = findings.length - located.length;
   const lanes = CATEGORY_ORDER.filter((c) => located.some((f) => f.category === c));
@@ -53,4 +54,4 @@ export function FileMap({ findings, fileSize, activeId }: Props) {
       {unlocated > 0 && <p class="filemap-note">{plural(unlocated, 'finding')} not tied to a byte range {unlocated === 1 ? 'is' : 'are'} listed below but not drawn here.</p>}
     </figure>
   );
-}
+});

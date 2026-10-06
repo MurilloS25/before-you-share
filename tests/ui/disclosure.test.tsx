@@ -61,7 +61,7 @@ describe('ShowMore', () => {
     expect(screen.getByRole('status').textContent).toBe('Showing 60 of 130 things.');
     expect(document.activeElement?.textContent).toBe('item 11');
     fireEvent.click(screen.getByRole('button', { name: /Show 50 more/ }));
-    fireEvent.click(screen.getByRole('button', { name: /Show 20 more \(0 remaining\)|Show 20 more/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Show 20 more (20 remaining)' }));
     await waitFor(() => expect(container.querySelectorAll('li').length).toBe(130));
     expect(screen.queryByRole('button')).toBeNull();
     expect(screen.getByRole('status').textContent).toBe('Showing 130 of 130 things.');
@@ -117,5 +117,24 @@ describe('a result with the maximum number of findings', () => {
     d.open = true;
     fireEvent(d, new Event('toggle'));
     await waitFor(() => expect(container.querySelectorAll('dl.evidence').length).toBe(1));
+  });
+});
+
+describe('ShowMore thresholds', () => {
+  const run = (n: number) => render(<ShowMore items={Array.from({ length: n }, (_, i) => i)} id={`t${n}`} noun={['item', 'items']} render={(i) => <li key={i}>{i}</li>} />);
+  it('shows 12 in full, and 13 as 10 plus "Show 3 more (3 remaining)" without a Show all', () => {
+    const a = run(12);
+    expect(a.container.querySelectorAll('li').length).toBe(12);
+    expect(screen.queryByRole('button')).toBeNull();
+    cleanup();
+    const b = run(13);
+    expect(b.container.querySelectorAll('li').length).toBe(10);
+    expect(screen.getByRole('button', { name: 'Show 3 more (3 remaining)' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Show all/ })).toBeNull();
+  });
+  it('offers Show all only when more than one step remains', () => {
+    run(70);
+    expect(screen.getByRole('button', { name: 'Show 50 more (60 remaining)' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Show all 60 remaining' })).toBeTruthy();
   });
 });

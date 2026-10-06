@@ -9,4 +9,7 @@ export function goTo(id: string): void {
   const reduce = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   el.scrollIntoView?.({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
   el.focus({ preventScroll: true });
+  // A heading followed by a closed disclosure (for example the structural category) opens it, so the jump lands on content.
+  const next = el.nextElementSibling;
+  if (next instanceof HTMLDetailsElement && !next.open) next.open = true;
 }

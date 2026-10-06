@@ -1153,3 +1153,8 @@ h1[id] {
 .plan-more > .fine-print {
   grid-column: 1 / -1;
 }
+
+ul > li[tabindex='-1']:focus {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}

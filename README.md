@@ -26,7 +26,7 @@ deployed.
 
 The results screen starts with a plain "Before you share" summary by category (no score, no verdict) and, for JPEG and PNG, a button
 that jumps to the experimental copy options. Technical detail (SHA-256, file map, evidence, manifest) is folded until opened, and long
-finding lists show 10 at a time with a control to reveal the rest.
+finding lists show 10 first, with a control to reveal 50 more or all the rest.
 
 Details and honest coverage limits: [docs/FORMATS.md](docs/FORMATS.md) and
 [docs/LIMITATIONS.md](docs/LIMITATIONS.md).

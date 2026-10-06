@@ -1,5 +1,7 @@
 import { CATEGORY_ORDER, type Category, type CoverageItem, type Finding } from '../../core/types';
 import { CATEGORY_HINT, CATEGORY_LABEL, STATUS_HELP, STATUS_LABEL, describeLocation, plural } from '../lib/format';
+import { memo } from '../lib/memo';
+import { useMemo } from 'preact/hooks';
 import { goTo } from '../lib/nav';
 import { LazyDetails, ShowMore } from './Disclosure';
 
@@ -22,7 +24,7 @@ export function StatusLabel({ status }: { status: Finding['status'] }) {
   );
 }
 
-function FindingItem({ f, active }: { f: Finding; active: boolean }) {
+const FindingItem = memo(function FindingItem({ f, active }: { f: Finding; active: boolean }) {
   const removal = f.transformation === 'removable' ? 'The experimental copy can remove this.' : f.transformation === 'preserved' ? 'The experimental copy keeps this on purpose.' : 'This tool cannot remove this.';
   // Hover and focus tracking is delegated to the list (see FindingsByCategory): no handlers per item.
   return (
@@ -63,7 +65,7 @@ function FindingItem({ f, active }: { f: Finding; active: boolean }) {
       </LazyDetails>
     </li>
   );
-}
+});
 
 interface Props {
   findings: Finding[];
@@ -73,8 +75,25 @@ interface Props {
 
 const findingId = (e: Event): string | null => ((e.target as HTMLElement | null)?.closest?.('li.finding') as HTMLElement | null)?.dataset['id'] ?? null;
 
+/** Id of the finding that currently holds keyboard focus inside `group`, if any. */
+function focusedId(group: Element | null): string | null {
+  const active = document.activeElement;
+  if (!group || !active || !group.contains(active)) return null;
+  return ((active.closest('li.finding') as HTMLElement | null)?.dataset['id']) ?? null;
+}
+
+const isLimitNotice = (f: Finding): boolean => f.code === 'limit.findings' || /\.limit$/.test(f.code);
+
 export function FindingsByCategory({ findings, activeId, onActive }: Props) {
-  const groups = CATEGORY_ORDER.map((c) => ({ cat: c, items: findings.filter((f) => f.category === c) })).filter((g) => g.items.length > 0);
+  const groups = useMemo(
+    () =>
+      CATEGORY_ORDER.map((c) => ({
+        cat: c,
+        // Notices that the analysis stopped at a limit come first, so they are never behind "Show more".
+        items: findings.filter((f) => f.category === c).sort((a, b) => Number(isLimitNotice(b)) - Number(isLimitNotice(a))),
+      })).filter((g) => g.items.length > 0),
+    [findings],
+  );
   if (groups.length === 0) {
     return <p class="empty">No hidden or notable items were found in the areas this tool reads. That does not mean the file has none; see what was not checked below.</p>;
   }
@@ -102,9 +121,13 @@ export function FindingsByCategory({ findings, activeId, onActive }: Props) {
           <div
             class="finding-group"
             onMouseOver={(e) => onActive(findingId(e))}
-            onMouseLeave={() => onActive(null)}
+            onMouseLeave={(e) => onActive(focusedId(e.currentTarget as Element))}
             onFocusIn={(e) => onActive(findingId(e))}
-            onFocusOut={() => onActive(null)}
+            onFocusOut={(e) => {
+              const group = e.currentTarget as Element;
+              const next = e.relatedTarget as Element | null;
+              onActive(next && group.contains(next) ? (((next.closest('li.finding') as HTMLElement | null)?.dataset['id']) ?? null) : null);
+            }}
           >
             <ShowMore items={items} id={`list-${cat}`} listClass="finding-list" noun={['finding', 'findings']} render={(f) => <FindingItem key={f.id} f={f} active={activeId === f.id} />} />
           </div>

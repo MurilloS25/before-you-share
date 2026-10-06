@@ -418,7 +418,12 @@ function ResultView({ view, busy, setView, actions }: ResultProps) {
       <CoverageList coverage={report.coverage} />
 
       {view.copy.kind === 'building' ? (
-        <Progress stage={view.copy.stage} fraction={null} onCancel={actions.cancelCopy} label="Experimental copy" />
+        <section class="copy-panel" aria-labelledby="copy-h">
+          <h2 id="copy-h" class="section-title">
+            Experimental copy
+          </h2>
+          <Progress stage={view.copy.stage} fraction={null} onCancel={actions.cancelCopy} label="Experimental copy" />
+        </section>
       ) : (
         <CopyPanel report={report} groups={groups} selected={view.selected} onToggle={actions.toggleGroup} onCreate={actions.makeCopy} busy={busy} />
       )}

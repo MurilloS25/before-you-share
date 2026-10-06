@@ -365,12 +365,36 @@ describe('"Before you share" block', () => {
     expect(document.activeElement?.id).toBe('coverage-h');
     fireEvent.click(within(block).getByRole('button', { name: 'Review all findings' }));
     expect(document.activeElement?.id).toBe('findings-h');
-    fireEvent.click(within(block).getAllByRole('button', { name: /^See .* findings$/ })[0]!);
+    fireEvent.click(within(block).getAllByRole('button', { name: /^See the findings: / })[0]!);
     expect(document.activeElement?.id).toMatch(/^cat-h-/);
     // category navigation links move focus as well, not only scroll
     const link = screen.getByRole('navigation', { name: 'Jump to a category' }).querySelector('a')!;
     fireEvent.click(link);
     expect(document.activeElement?.id).toMatch(/^cat-h-/);
+  });
+});
+
+describe('copy panel while a copy is being built', () => {
+  it('keeps the heading, so the summary button still lands somewhere', async () => {
+    Element.prototype.scrollIntoView = vi.fn();
+    const report = await analyseFixture('jpeg-gps.jpg');
+    const fc = await open(file('g.jpg', fixture('jpeg-gps.jpg')), report);
+    fireEvent.click(screen.getByRole('button', { name: 'Make experimental copy' }));
+    await waitFor(() => expect(fc.jobs.length).toBe(2));
+    await screen.findByText(/Building the experimental copy/);
+    expect(document.getElementById('copy-h')).not.toBeNull();
+    fireEvent.click(within(document.getElementById('before-share')!).getByRole('button', { name: 'Review copy options' }));
+    expect(document.activeElement?.id).toBe('copy-h');
+  });
+
+  it('opens the details that follows a jumped-to heading (structural category)', async () => {
+    Element.prototype.scrollIntoView = vi.fn();
+    const report = await analyseFixture('jpeg-clean.jpg');
+    await open(file('c.jpg', fixture('jpeg-clean.jpg')), report);
+    const { goTo } = await import('../../src/ui/lib/nav');
+    goTo('cat-h-structural');
+    const d = document.querySelector('[data-category="structural"] details') as HTMLDetailsElement;
+    expect(d.open).toBe(true);
   });
 });
 

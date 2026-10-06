@@ -20,7 +20,8 @@ function listNames(names: string[], max = 4): string {
   return `${u.slice(0, max).join(', ')} and ${u.length - max} more`;
 }
 
-export const lower = (s: string): string => (s.length > 1 && s[1] === s[1]!.toLowerCase() ? s[0]!.toLowerCase() + s.slice(1) : s);
+/** Lower-case the first word of a label unless it is an acronym or contains digits (EXIF data, A4 size stay as written). */
+export const lower = (s: string): string => (/^[A-Z][a-z]+(\s|$)/.test(s) ? s[0]!.toLowerCase() + s.slice(1) : s);
 
 /**
  * A calm, factual list of the kinds of information found, for the "Before you share" block.
@@ -43,11 +44,14 @@ export function shareNotes(findings: Finding[]): ShareNote[] {
       count: gpsOk.length,
     });
   } else if (gps.length > 0) {
+    const decodedButOdd = gps.some((f) => (f.value ?? '').includes('°'));
     notes.push({
       id: 'gps',
       category: 'location',
       headline: 'GPS fields',
-      detail: 'GPS fields are present but could not be decoded into a reliable position.',
+      detail: decodedButOdd
+        ? 'GPS coordinates are present but outside the valid range, so they are probably wrong.'
+        : 'GPS fields are present but could not be decoded into a reliable position.',
       count: gps.length,
     });
   }
@@ -122,7 +126,17 @@ export function shareNotes(findings: Finding[]): ShareNote[] {
       count: active.length,
     });
   }
-  const unsupported = of('unsupported');
+  const limits = of('unsupported').filter((f) => f.code === 'limit.findings' || /\.limit$/.test(f.code));
+  if (limits.length > 0) {
+    notes.push({
+      id: 'limits',
+      category: 'unsupported',
+      headline: 'A safety limit was reached',
+      detail: 'Some parts of the file were not examined, or some findings were not listed, because the analysis stopped at a limit.',
+      count: limits.length,
+    });
+  }
+  const unsupported = of('unsupported').filter((f) => !limits.includes(f));
   if (unsupported.length > 0) {
     notes.push({
       id: 'unsupported',

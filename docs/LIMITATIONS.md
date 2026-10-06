@@ -25,7 +25,8 @@ Plain statements of what this tool does not do or cannot promise.
 - **JFIF thumbnails** are removable only through "Other application segments" (the JFIF header is rewritten without them).
 - **Large result lists.** A category with more than 12 findings shows the first 10 and a control to reveal 50 more or all the rest, so a
   600-finding result no longer blocks the page while it is drawn. Findings that are not shown yet are not in the page, so the browser's find-in-page
-  cannot see them until they are revealed. "Show all" on a 600-finding category is a deliberate action and takes a few hundred milliseconds.
+  cannot see them until they are revealed. The same holds for the contents of closed "Evidence and limits" sections, the file map and the mutation
+  manifest, which are built when opened. "Show all" on a 600-finding category is a deliberate action and takes a few hundred milliseconds.
 - **Fuzzing.** The suite runs property and mutation tests with a fixed seed; other seeds and larger run counts were tried by hand during development and not recorded. They are not coverage-guided fuzzing and do not prove the absence of parser bugs. XMP, IPTC and ICC readers are exercised only through the JPEG/PNG analysers.
 - **Tested browsers.** Automated tests run in Microsoft Edge (Chromium). Firefox and Safari are
   targeted by design (`docs/BROWSERS.md`) but untested: they were not run in this work.

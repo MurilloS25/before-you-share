@@ -122,6 +122,16 @@ test('presenting a 600-finding result keeps the main thread free (250 ms budget)
   measurements.revealAllMaxGapMs = reveal.gap;
   measurements.revealAllLongTaskMs = reveal.longTask;
   expect(reveal.longTask).toBeLessThan(1000);
+
+  // With all 599 findings on screen, moving between them must not re-render the list (highlighting is delegated and memoised).
+  await installLagProbe(page);
+  const items = page.locator('[data-category="document-properties"] li.finding');
+  for (const i of [5, 120, 300, 480, 598, 40, 220]) await items.nth(i).hover();
+  await page.waitForTimeout(150);
+  const hover = await readLag(page);
+  measurements.hoverAfterShowAllLongTaskMs = hover.longTask;
+  measurements.hoverAfterShowAllMaxGapMs = hover.gap;
+  expect(hover.longTask).toBeLessThan(100);
 });
 
 test('typical files finish quickly', async ({ page }) => {
