@@ -2,6 +2,7 @@ import { concat } from '../core/bytes';
 import { crc32 } from '../core/crc32';
 import { RefusedError } from '../core/errors';
 import type { ManifestEntry, MutationManifest } from '../core/types';
+import { POLICY } from './policy';
 import { analysePng, classifyChunk, scanPng, PNG_SIGNATURE } from '../formats/png';
 import { Reader } from '../core/bytes';
 import { parseExif } from '../formats/exif';
@@ -79,16 +80,8 @@ export async function sanitisePng(bytes: Uint8Array, groups: string[]): Promise<
     entries,
     inputBytes: bytes.length,
     outputBytes: output.length,
-    preservedPolicy: [
-      'Image data (IDAT), the header, palette and transparency chunks are copied byte for byte.',
-      'Colour and display chunks (iCCP, sRGB, gAMA, cHRM, cICP, pHYs, bKGD, sBIT and animation chunks) are kept because removing them can change how the picture looks.',
-      'Anything not selected for removal is kept, including chunks this tool cannot decode.',
-    ],
-    mayChange: [
-      'The file size and byte layout change.',
-      'Programs that rely on the removed data (for example software that reads creation time) will no longer find it.',
-      'The picture is not re-encoded. This is checked, not assumed.',
-    ],
+    preservedPolicy: [...POLICY.png.preserved],
+    mayChange: [...POLICY.png.mayChange],
   };
   return { output, manifest };
 }

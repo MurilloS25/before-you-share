@@ -1,6 +1,7 @@
 import { concat } from '../core/bytes';
 import { RefusedError } from '../core/errors';
 import type { ManifestEntry, MutationManifest } from '../core/types';
+import { POLICY } from './policy';
 import { analyseJpeg, classifySegment, scanJpeg } from '../formats/jpeg';
 
 const KIND_LABEL: Record<string, string> = {
@@ -96,16 +97,8 @@ export function sanitiseJpeg(bytes: Uint8Array, groups: string[]): JpegTransform
     entries,
     inputBytes: bytes.length,
     outputBytes: output.length,
-    preservedPolicy: [
-      'The compressed picture data and all structural segments (quantisation tables, Huffman tables, frame and scan headers) are copied byte for byte.',
-      'JFIF headers, ICC colour profiles and Adobe colour markers are kept because removing them can change how the picture looks.',
-      'Anything not selected for removal is kept, including structures this tool cannot decode.',
-    ],
-    mayChange: [
-      'The file size and byte layout change.',
-      'Programs that rely on the removed data (for example photo libraries sorting by date or place) will no longer find it.',
-      'The picture is not re-encoded, so quality and colours are not recompressed. This is checked, not assumed.',
-    ],
+    preservedPolicy: [...POLICY.jpeg.preserved],
+    mayChange: [...POLICY.jpeg.mayChange],
   };
   return { output, manifest };
 }
