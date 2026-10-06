@@ -192,3 +192,14 @@ export function buildExif(o: ExifOptions): Uint8Array {
   for (const i of ifds) i.entries.sort((a, b) => a.tag - b.tag);
   return t.build(ifds);
 }
+
+/** Replace the JFIF APP0 segment with one that carries an embedded thumbnail of tx by ty pixels (RGB). */
+export function withJfifThumbnail(jpeg: Uint8Array, tx: number, ty: number): Uint8Array {
+  const oldLen = (jpeg[4]! << 8) | jpeg[5]!;
+  const header = Uint8Array.from(jpeg.subarray(6, 6 + 14));
+  header[12] = tx;
+  header[13] = ty;
+  const thumb = new Uint8Array(tx * ty * 3).fill(0x7f);
+  const payload = cat(header, thumb);
+  return cat(jpeg.subarray(0, 2), segment(0xe0, payload), jpeg.subarray(4 + oldLen));
+}

@@ -38,13 +38,6 @@ export function detectFormat(head: Uint8Array): Detection {
   if (startsWith(head, [0xff, 0xd8, 0xff])) {
     return { format: 'jpeg', mime: 'image/jpeg', label: 'JPEG image', recognisedUnsupported: false };
   }
-  // PDF: "%PDF-" is allowed within the first 1024 bytes.
-  const limit = Math.min(head.length - 5, 1024);
-  for (let i = 0; i <= limit; i++) {
-    if (head[i] === 0x25 && ascii(head, '%PDF-', i)) {
-      return { format: 'pdf', mime: 'application/pdf', label: 'PDF document', recognisedUnsupported: false };
-    }
-  }
   if (ascii(head, 'GIF87a') || ascii(head, 'GIF89a')) return unsupported('image/gif', 'GIF image');
   if (ascii(head, 'RIFF') && ascii(head, 'WEBP', 8)) return unsupported('image/webp', 'WebP image');
   if (ascii(head, 'ftyp', 4)) return unsupported('video/mp4 or image/heic', 'ISO media container (MP4, HEIC, AVIF)');
@@ -55,6 +48,13 @@ export function detectFormat(head: Uint8Array): Detection {
     return unsupported('image/tiff', 'TIFF image');
   }
   if (startsWith(head, [0xd0, 0xcf, 0x11, 0xe0])) return unsupported('application/x-ole-storage', 'Legacy Office (OLE) document');
+  // PDF: "%PDF-" is allowed within the first 1024 bytes.
+  const limit = Math.min(head.length - 5, 1024);
+  for (let i = 0; i <= limit; i++) {
+    if (head[i] === 0x25 && ascii(head, '%PDF-', i)) {
+      return { format: 'pdf', mime: 'application/pdf', label: 'PDF document', recognisedUnsupported: false };
+    }
+  }
   return { format: null, mime: 'unknown', label: 'Unrecognised content', recognisedUnsupported: false };
 }
 

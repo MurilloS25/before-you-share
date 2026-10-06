@@ -366,6 +366,13 @@ export const CATALOG: Record<string, CatalogEntry> = {
     privacy: TIME_NOTE,
     group: 'png-text',
   },
+  'png.text-malformed': {
+    category: 'unsupported',
+    label: 'Text chunk that could not be read',
+    privacy: 'A text chunk exists but its keyword or layout is not valid, so its content was not decoded. It may still hold text.',
+    group: 'png-text',
+    limitations: ['The content was not decoded.'],
+  },
   'png.time': {
     category: 'time',
     label: 'Last modification time (tIME)',
@@ -395,7 +402,7 @@ export const CATALOG: Record<string, CatalogEntry> = {
   'png.crc-invalid': {
     category: 'structural',
     label: 'Chunk checksum does not match',
-    privacy: 'A chunk was altered or damaged after it was written. Values in that chunk are less reliable.',
+    privacy: 'The stored checksum does not match the chunk, which can mean it was altered or damaged. Values in that chunk are less reliable.',
   },
   'png.trailing-data': {
     category: 'embedded-content',
@@ -520,7 +527,7 @@ export const CATALOG: Record<string, CatalogEntry> = {
   'pdf.malformed': {
     category: 'structural',
     label: 'PDF could not be fully parsed',
-    privacy: 'The reviewed PDF library reported an error. Values below come from a raw scan and are less certain.',
+    privacy: 'The PDF reader used by this tool reported an error. Values below come from a raw scan and are less certain.',
   },
   'pdf.raw-token': {
     category: 'structural',

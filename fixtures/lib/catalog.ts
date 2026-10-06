@@ -15,6 +15,7 @@ import {
   syntheticIcc,
   xmpSegment,
   xmpPacket,
+  withJfifThumbnail,
 } from './jpeg';
 import { buildPng, chunk, iccpChunk, ihdr, iend, itxtChunk, PNG_SIG, idatSplit, physChunk, textChunk, timeChunk, ztxtChunk, idatFor } from './png';
 import { basicPdf, PdfWriter, SYNTH_INFO } from './pdf';
@@ -66,6 +67,7 @@ export function buildFixtures(): FixtureSpec[] {
   add('jpeg-gps.jpg', 'EXIF with a clearly synthetic GPS position (0.25 N, 0.75 E).', insertSegments(base, [exifSegment(buildExif({ make: 'Example Maker', model: 'Fixture Camera One', gps: GPS }))]));
   add('jpeg-orientation6.jpg', 'EXIF orientation 6 (rotate 90 degrees) and nothing else.', insertSegments(base, [exifSegment(buildExif({ orientation: 6 }))]));
   add('jpeg-thumbnail.jpg', 'EXIF with an embedded thumbnail JPEG.', insertSegments(base, [exifSegment(buildExif({ make: 'Example Maker', thumbnail: thumb }))]));
+  add('jpeg-jfif-thumbnail.jpg', 'JFIF header with a 2 x 2 embedded thumbnail.', withJfifThumbnail(base, 2, 2));
   add('jpeg-xmp.jpg', 'XMP packet with creator, tool, dates, document ID and city.', insertSegments(base, [xmpSegment(SYNTH_XMP)]));
   add('jpeg-comment.jpg', 'JPEG comment segment.', insertSegments(base, [commentSegment('Synthetic comment by Example Person')]));
   add('jpeg-icc.jpg', 'Embedded synthetic ICC profile.', insertSegments(base, iccSegments(syntheticIcc())));
@@ -151,6 +153,7 @@ export function buildFixtures(): FixtureSpec[] {
   add('png-phys.png', 'pHYs chunk (72 dpi).', buildPng({ before: [physChunk(2835)] }));
   add('png-xmp.png', 'XMP packet in an iTXt chunk.', buildPng({ before: [itxtChunk('XML:com.adobe.xmp', SYNTH_XMP)] }));
   add('png-unknown-chunk.png', 'Private ancillary chunk and a C2PA-named chunk.', buildPng({ before: [chunk('zzZz', enc('private fixture data')), chunk('caBX', enc('not real content credentials'))] }));
+  add('png-text-malformed.png', 'tEXt chunks with no keyword terminator and with an empty keyword.', buildPng({ before: [chunk('tEXt', latin('no keyword terminator secret text')), chunk('tEXt', cat(Uint8Array.of(0), latin('empty keyword')))] }));
   add('png-bad-crc.png', 'A tEXt chunk with a wrong checksum.', buildPng({ before: [chunk('tEXt', cat(latin('Author'), Uint8Array.of(0), latin('Example Person')), { badCrc: true })] }));
   add('png-bad-length.png', 'A chunk declares a length far beyond the end of the file.', cat(PNG_SIG, ihdr(64, 48), chunk('tEXt', latin('Comment\0x'), { lengthOverride: 0x7fffff00 }), idatFor(64, 48), iend()));
   add('png-trailing.png', 'Bytes after IEND.', buildPng({ tail: latin('PK\u0003\u0004fixture-trailing-bytes') }));

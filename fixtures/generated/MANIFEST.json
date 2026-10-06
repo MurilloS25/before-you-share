@@ -38,6 +38,12 @@
       "description": "EXIF with an embedded thumbnail JPEG."
     },
     {
+      "file": "jpeg-jfif-thumbnail.jpg",
+      "bytes": 1434,
+      "sha256": "95044716d72876e1868dd92c3c928f6cb923720a0a1a8f308f9fdd218d1747a9",
+      "description": "JFIF header with a 2 x 2 embedded thumbnail."
+    },
+    {
       "file": "jpeg-xmp.jpg",
       "bytes": 2225,
       "sha256": "63bbaaf2c56873f1726ff0797dab97ac683c9a36461a1502d7ca309b22d057f2",
@@ -174,6 +180,12 @@
       "bytes": 7673,
       "sha256": "8dbc4e556bedbd2a62500b2ea2e65b0104b083ff7043e7212f53f93e3b1bbb1b",
       "description": "Private ancillary chunk and a C2PA-named chunk."
+    },
+    {
+      "file": "png-text-malformed.png",
+      "bytes": 7672,
+      "sha256": "8997255f48ade38368633074ab620cf13cd99f2bea52a7d82606adce87d23c3c",
+      "description": "tEXt chunks with no keyword terminator and with an empty keyword."
     },
     {
       "file": "png-bad-crc.png",

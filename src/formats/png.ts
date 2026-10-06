@@ -238,31 +238,47 @@ export async function analysePng(bytes: Uint8Array): Promise<FormatAnalysis> {
     const data = bytes.subarray(c.dataOffset, c.dataOffset + c.length);
     const at = `PNG ${c.type} chunk`;
     const mark = sink.findings.length;
+    let badText = false;
     switch (c.type) {
       case 'tEXt': {
         const kw = splitKeyword(data);
-        if (!kw) break;
+        if (!kw) {
+          badText = true;
+          break;
+        }
         emitText(sink, kw.keyword, latin1(data.subarray(kw.rest)), at, loc, 'verified');
         break;
       }
       case 'zTXt': {
         const kw = splitKeyword(data);
-        if (!kw || data.length < kw.rest + 1) break;
+        if (!kw || data.length < kw.rest + 1) {
+          badText = true;
+          break;
+        }
         const res = await inflateCapped(data.subarray(kw.rest + 1), LIMITS.maxInflatePerChunk);
         emitText(sink, kw.keyword, latin1(res.bytes), at, loc, res.truncated || res.error ? 'suspicious' : 'verified', res.truncated, res.error);
         break;
       }
       case 'iTXt': {
         const kw = splitKeyword(data);
-        if (!kw || data.length < kw.rest + 2) break;
+        if (!kw || data.length < kw.rest + 2) {
+          badText = true;
+          break;
+        }
         const flag = data[kw.rest]!;
         const method = data[kw.rest + 1]!;
         let p = kw.rest + 2;
         const langEnd = data.indexOf(0, p);
-        if (langEnd === -1) break;
+        if (langEnd === -1) {
+          badText = true;
+          break;
+        }
         p = langEnd + 1;
         const transEnd = data.indexOf(0, p);
-        if (transEnd === -1) break;
+        if (transEnd === -1) {
+          badText = true;
+          break;
+        }
         p = transEnd + 1;
         const body = data.subarray(p);
         let text: Uint8Array = body;
@@ -289,7 +305,7 @@ export async function analysePng(bytes: Uint8Array): Promise<FormatAnalysis> {
       }
       case 'eXIf': {
         const res = parseExif(data, c.dataOffset, sink, at);
-        if (res.orientation !== null) orientation = res.orientation;
+        if (res.orientation !== null && orientation === null) orientation = res.orientation;
         break;
       }
       case 'tIME': {
@@ -329,7 +345,10 @@ export async function analysePng(bytes: Uint8Array): Promise<FormatAnalysis> {
       }
       case 'iCCP': {
         const kw = splitKeyword(data);
-        if (!kw || data.length < kw.rest + 1) break;
+        if (!kw || data.length < kw.rest + 1) {
+          badText = true;
+          break;
+        }
         const res = await inflateCapped(data.subarray(kw.rest + 1), LIMITS.maxInflatePerChunk);
         const icc = parseIccHeader(res.bytes);
         sink.add('icc.profile', {
@@ -374,6 +393,15 @@ export async function analysePng(bytes: Uint8Array): Promise<FormatAnalysis> {
           }
         }
       }
+    }
+    if (badText) {
+      sink.add('png.text-malformed', {
+        value: `${c.type} chunk, ${c.length} bytes, whose keyword or layout could not be read`,
+        source: at,
+        location: loc,
+        status: 'suspicious',
+        confidence: 'medium',
+      });
     }
     // Re-home findings that came from shared helpers into this format's removal options.
     for (let i = mark; i < sink.findings.length; i++) {

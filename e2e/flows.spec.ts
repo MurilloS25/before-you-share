@@ -47,7 +47,7 @@ test.describe('JPEG', () => {
     await expect(page.locator('.verdict[data-ok="true"]')).toContainText('Other hidden information may remain');
     // Every check passed, including the browser decode comparison.
     const checks = page.locator('.checks li');
-    await expect(checks).toHaveCount(9);
+    await expect(checks).toHaveCount(10);
     await expect(page.locator('.checks li[data-status="fail"]')).toHaveCount(0);
     await expect(page.locator('.checks li', { hasText: 'decode in this browser' })).toHaveAttribute('data-status', 'pass');
     await expect(page.locator('.checks li', { hasText: 'decode in this browser' })).toContainText('every decoded pixel is identical');

@@ -42,16 +42,11 @@ export async function sanitisePng(bytes: Uint8Array, groups: string[]): Promise<
     const chunkBytes = bytes.subarray(c.offset, c.offset + c.total);
     if (cls.group && !cls.alwaysKeep && selected.has(cls.group)) {
       if (c.type === 'eXIf' && keepOrientation && !orientationWritten) {
-        // Only keep the orientation if the chunk itself yields one.
-        const probe = new FindingSink();
-        const res = parseExif(r.slice(c.dataOffset, c.length), c.dataOffset, probe, 'eXIf');
-        if (res.orientation !== null && res.orientation !== 1) {
-          const replacement = orientationOnlyExifChunk(res.orientation);
-          parts.push(replacement);
-          orientationWritten = true;
-          entries.push({ action: 'rewritten', what: 'eXIf chunk replaced by one that holds only the orientation value', group: cls.group, offset: c.offset, bytes: replacement.length, note: `Original chunk: ${c.total} bytes.` });
-          continue;
-        }
+        const replacement = orientationOnlyExifChunk(analysis.orientation!);
+        parts.push(replacement);
+        orientationWritten = true;
+        entries.push({ action: 'rewritten', what: 'eXIf chunk replaced by one that holds only the orientation value', group: cls.group, offset: c.offset, bytes: replacement.length, note: `Original chunk: ${c.total} bytes.` });
+        continue;
       }
       entries.push({ action: 'removed', what: `${c.type} chunk`, group: cls.group, offset: c.offset, bytes: c.total });
       continue;

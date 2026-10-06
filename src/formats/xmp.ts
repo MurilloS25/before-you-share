@@ -20,27 +20,60 @@ export function decodeEntities(s: string): string {
   });
 }
 
-/** Values of `<prefix:name>` as list items or plain text, plus `prefix:name="value"` attributes. */
+/**
+ * Values of `<prefix:name>` as list items or plain text, plus `prefix:name="value"` attributes.
+ * Index-based scanning with attempt caps: cost is linear in the packet size per property, so a hostile
+ * packet of repeated openings cannot cause quadratic work.
+ */
 export function xmpValues(xml: string, qname: string): string[] {
   const out: string[] = [];
-  const esc = qname.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const attr = new RegExp(`(?:^|[\\s<])${esc}\\s*=\\s*"([^"]{0,2000})"`, 'g');
-  let m: RegExpExecArray | null;
-  let guard = 0;
-  while ((m = attr.exec(xml)) && guard++ < 50) out.push(decodeEntities(m[1]!));
-  const el = new RegExp(`<${esc}(?:\\s[^>]{0,500})?>([\\s\\S]{0,20000}?)</${esc}>`, 'g');
-  guard = 0;
-  while ((m = el.exec(xml)) && guard++ < 50) {
-    const inner = m[1]!;
-    const items: string[] = [];
-    const li = /<rdf:li(?:\s[^>]{0,300})?>([\s\S]{0,4000}?)<\/rdf:li>/g;
-    let n: RegExpExecArray | null;
-    let g2 = 0;
-    while ((n = li.exec(inner)) && g2++ < 100) items.push(decodeEntities(n[1]!.replace(/<[^>]*>/g, '').trim()));
-    if (items.length > 0) out.push(...items);
-    else {
-      const plain = decodeEntities(inner.replace(/<[^>]*>/g, '').trim());
-      if (plain) out.push(plain);
+  let from = 0;
+  let attempts = 0;
+  while (attempts++ < 200 && out.length < 50) {
+    const i = xml.indexOf(qname, from);
+    if (i === -1) break;
+    from = i + qname.length;
+    const prev = i > 0 ? xml[i - 1]! : ' ';
+    if (prev === '<') {
+      const next = xml[from];
+      if (next === undefined || !(next === '>' || next === '/' || /\s/.test(next))) continue;
+      const gt = xml.indexOf('>', from);
+      if (gt === -1 || gt - from > 500) continue;
+      if (xml[gt - 1] === '/') continue;
+      const close = xml.indexOf(`</${qname}>`, gt + 1);
+      if (close === -1) break; // no closing tag anywhere later either
+      if (close - gt > 20000) continue;
+      const inner = xml.slice(gt + 1, close);
+      from = close;
+      const items: string[] = [];
+      let p = 0;
+      let guard = 0;
+      while (guard++ < 100) {
+        const li = inner.indexOf('<rdf:li', p);
+        if (li === -1) break;
+        const liGt = inner.indexOf('>', li);
+        if (liGt === -1) break;
+        const liEnd = inner.indexOf('</rdf:li>', liGt);
+        if (liEnd === -1) break;
+        items.push(decodeEntities(inner.slice(liGt + 1, Math.min(liEnd, liGt + 4001)).replace(/<[^>]*>/g, '').trim()));
+        p = liEnd + 9;
+      }
+      if (items.length > 0) out.push(...items);
+      else {
+        const plain = decodeEntities(inner.slice(0, 4000).replace(/<[^>]*>/g, '').trim());
+        if (plain) out.push(plain);
+      }
+    } else if (/\s/.test(prev)) {
+      let j = from;
+      while (j < from + 8 && /\s/.test(xml[j] ?? '')) j++;
+      if (xml[j] !== '=') continue;
+      j++;
+      while (j < from + 16 && /\s/.test(xml[j] ?? '')) j++;
+      if (xml[j] !== '"') continue;
+      const end = xml.indexOf('"', j + 1);
+      if (end === -1 || end - j > 2001) continue;
+      out.push(decodeEntities(xml.slice(j + 1, end)));
+      from = end;
     }
   }
   return out.filter((s) => s !== '');

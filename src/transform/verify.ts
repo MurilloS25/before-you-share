@@ -4,7 +4,7 @@ import { RefusedError } from '../core/errors';
 import type { FormatId } from '../core/limits';
 import type { AnalysisReport, Finding, MutationManifest, TransformResult, VerificationCheck, VerificationResult } from '../core/types';
 import { classifyChunk, scanPng } from '../formats/png';
-import { scanJpeg } from '../formats/jpeg';
+import { classifySegment, scanJpeg } from '../formats/jpeg';
 import { sanitiseJpeg } from './jpeg';
 import { sanitisePng } from './png';
 
@@ -40,6 +40,25 @@ export function jpegCore(bytes: Uint8Array): Uint8Array {
 export function pngCore(bytes: Uint8Array): Uint8Array {
   const scan = scanPng(bytes);
   return concat(scan.chunks.filter((c) => classifyChunk(c.type).alwaysKeep).map((c) => bytes.subarray(c.offset, c.offset + c.total)));
+}
+
+/** Bytes of the display-affecting parts that a copy must keep: ICC and Adobe segments (JPEG), colour and display chunks (PNG). */
+export function displayData(bytes: Uint8Array, format: 'jpeg' | 'png'): Uint8Array {
+  if (format === 'jpeg') {
+    return concat(
+      scanJpeg(bytes)
+        .segments.filter((s) => {
+          const k = classifySegment(bytes, s).kind;
+          return k === 'icc' || k === 'adobe';
+        })
+        .map((s) => bytes.subarray(s.offset, s.offset + s.length)),
+    );
+  }
+  return concat(
+    scanPng(bytes)
+      .chunks.filter((c) => classifyChunk(c.type).kind === 'render')
+      .map((c) => bytes.subarray(c.offset, c.offset + c.total)),
+  );
 }
 
 function equal(a: Uint8Array, b: Uint8Array): boolean {
@@ -113,6 +132,14 @@ export async function verifyCopy(
     label: 'Compressed picture data is byte-identical to the original',
     status: coreEqual ? 'pass' : 'fail',
     detail: coreEqual ? 'Image data and structural headers were copied without change, so the picture was not re-encoded.' : 'The picture data differs from the original.',
+  });
+
+  const displayEqual = format === 'pdf' ? true : equal(displayData(original, format), displayData(output, format));
+  checks.push({
+    id: 'display-data',
+    label: 'Colour profile and display chunks are byte-identical to the original',
+    status: displayEqual ? 'pass' : 'fail',
+    detail: displayEqual ? 'Colour profiles and display-related markers were copied without change.' : 'A colour or display structure differs from the original.',
   });
 
   const dimsEqual =

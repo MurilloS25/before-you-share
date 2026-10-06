@@ -36,7 +36,7 @@ describe('JPEG copy', () => {
     expect(Buffer.from(original).equals(Buffer.from(snapshot))).toBe(true); // input never mutated
     expect(res.verification.allPassed).toBe(true);
     expect(res.verification.checks.map((c) => `${c.id}:${c.status}`)).toEqual([
-      'format:pass', 'selected-removed:pass', 'nothing-new:pass', 'kept-as-planned:pass', 'picture-data:pass', 'dimensions:pass', 'orientation:pass', 'original-untouched:pass', 'decode:pass',
+      'format:pass', 'selected-removed:pass', 'nothing-new:pass', 'kept-as-planned:pass', 'picture-data:pass', 'display-data:pass', 'dimensions:pass', 'orientation:pass', 'original-untouched:pass', 'decode:pass',
     ]);
     expect(res.verification.pixelsIdentical).toBe(true);
 

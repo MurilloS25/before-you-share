@@ -61,7 +61,7 @@ export function scanPdfRaw(bytes: Uint8Array): RawScan {
       q++;
     }
     if (WATCH.has(name)) scan.tokens.set(name, (scan.tokens.get(name) ?? 0) + 1);
-    if (name === 'ID' && scan.ids === null && q < bytes.length) {
+    if (name === 'ID' && q < bytes.length) {
       const look = latin1(bytes.subarray(q, Math.min(bytes.length, q + 200)));
       const hex = /^\s*\[\s*<([0-9a-fA-F\s]{2,128})>\s*<([0-9a-fA-F\s]{2,128})>\s*\]/.exec(look);
       if (hex) scan.ids = [hex[1]!.replace(/\s/g, '').toLowerCase(), hex[2]!.replace(/\s/g, '').toLowerCase()];

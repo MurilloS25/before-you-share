@@ -31,6 +31,14 @@ export function orientationOnlyExifSegment(orientation: number): Uint8Array {
   return concat([Uint8Array.of(0xff, 0xe1, (len >> 8) & 0xff, len & 0xff), payload]);
 }
 
+/** Bytes of embedded thumbnail pixels in a JFIF APP0 segment (0 when none or the segment is too short). */
+export function jfifThumbnailBytes(bytes: Uint8Array, seg: { payloadOffset: number; payloadLength: number }): number {
+  if (seg.payloadLength < 14) return 0;
+  const tx = bytes[seg.payloadOffset + 12]!;
+  const ty = bytes[seg.payloadOffset + 13]!;
+  return tx * ty > 0 ? Math.max(0, seg.payloadLength - 14) : 0;
+}
+
 export interface JpegTransform {
   output: Uint8Array;
   manifest: MutationManifest;
@@ -75,6 +83,24 @@ export function sanitiseJpeg(bytes: Uint8Array, groups: string[]): JpegTransform
         continue;
       }
       cut(seg.offset, seg.offset + seg.length, label, cls.group);
+    } else if (cls.kind === 'jfif' && selected.has('other-segments') && jfifThumbnailBytes(bytes, seg) > 0) {
+      // Keep the header (version and density) but drop the embedded thumbnail: set its size to 0x0 and cut its pixels.
+      const header = Uint8Array.from(bytes.subarray(seg.payloadOffset, seg.payloadOffset + 14));
+      header[12] = 0;
+      header[13] = 0;
+      const len = header.length + 2;
+      const replacement = concat([Uint8Array.of(0xff, 0xe0, (len >> 8) & 0xff, len & 0xff), header]);
+      if (seg.offset > cursor) parts.push(bytes.subarray(cursor, seg.offset));
+      parts.push(replacement);
+      cursor = seg.offset + seg.length;
+      entries.push({
+        action: 'rewritten',
+        what: 'JFIF header rewritten without its embedded thumbnail',
+        group: 'other-segments',
+        offset: seg.offset,
+        bytes: replacement.length,
+        note: `Original segment: ${seg.length} bytes.`,
+      });
     } else if (cls.kind === 'icc' || cls.kind === 'adobe' || cls.kind === 'jfif') {
       entries.push({ action: 'preserved', what: label, offset: seg.offset, bytes: seg.length, note: 'Kept because it affects how the picture is displayed.' });
     } else if (cls.group && !cls.alwaysKeep) {
@@ -82,6 +108,17 @@ export function sanitiseJpeg(bytes: Uint8Array, groups: string[]): JpegTransform
     }
   }
   if (scan.trailingStart !== null && scan.trailingStart < bytes.length) {
+    const mpfKept = !selected.has('other-segments') && scan.segments.some((s) => classifySegment(bytes, s).kind === 'mpf');
+    if (selected.has('trailer') && mpfKept) {
+      entries.push({
+        action: 'preserved',
+        what: 'Multi-picture (MPF) index segment',
+        group: 'other-segments',
+        offset: null,
+        bytes: 0,
+        note: 'Kept, but the images it points to after the end-of-image marker were removed, so its index now points at missing data. Select "Other application segments" too to remove it.',
+      });
+    }
     if (selected.has('trailer')) {
       cut(scan.trailingStart, bytes.length, 'Data after the end-of-image marker', 'trailer');
     } else {
