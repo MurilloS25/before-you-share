@@ -1,0 +1,59 @@
+# Formats and coverage
+
+"Verified" means read directly from the file. "Counted" means detected and sized but not decoded.
+Coverage is also shown to the person in the app ("What this tool did not fully check").
+
+## JPEG
+
+| Area | Coverage |
+| --- | --- |
+| Signature and structure | Marker walk from SOI to EOI without decoding image data. Truncation, impossible lengths, duplicate SOF, stray SOI, segment cap (4096) detected |
+| JFIF / JFXX | Version, density, embedded thumbnail fields (verified) |
+| EXIF | IFD0, Exif IFD, GPS IFD, IFD1 (thumbnail location), little- and big-endian. Decoded: make, model, software, dates and offsets, artist, copyright, description, orientation, lens, serial numbers, owner, unique ID, user comment, Windows XP fields, GPS position/altitude/other. **MakerNote: size only.** Uncommon tags: counted. Thumbnail JPEG: located, **not opened** |
+| XMP | First packet: well-known properties (creator, rights, tool, agent, dates, title, description, keywords, document IDs, camera, location). Extended XMP: counted, **not reassembled** |
+| IPTC / Photoshop | 8BIM resources: IPTC-IIM record 2 datasets (byline, credit, copyright, caption, headline, keywords, location, dates), thumbnails; other resources counted |
+| ICC | Header and description tag only; split profiles reassembled |
+| Adobe APP14, MPF, other APPn | Identified and sized; MPF additional images **not extracted** |
+| Comments | Text |
+| Trailing data | Measured and classified by first bytes (JPEG, PNG, ZIP, PDF, unknown) |
+| Dimensions | From SOF; extreme sizes refused for decode |
+| Not examined | Pixels, faces, text in the picture, steganography, data inside entropy-coded segments |
+
+Experimental copy: removes selected groups (EXIF, XMP, IPTC/Photoshop, comments; opt-in: other
+application segments, trailing data). Keeps JFIF, ICC, Adobe marker, all structural segments and image
+data byte for byte. Keeps orientation via an orientation-only EXIF segment.
+
+## PNG
+
+| Area | Coverage |
+| --- | --- |
+| Structure | Signature, every chunk length, type code and CRC, IHDR validation, chunk order and duplicate rules, IDAT continuity, chunk cap (20000) |
+| Text | tEXt, zTXt (bounded inflate), iTXt (UTF-8, compressed or not), keyword categories |
+| XMP | iTXt `XML:com.adobe.xmp`, same well-known properties as JPEG |
+| EXIF | eXIf with the same decoder as JPEG (GPS, device, dates) |
+| tIME, pHYs, iCCP | Verified |
+| Display chunks | gAMA, cHRM, sRGB, cICP, sBIT, bKGD, tRNS, hIST, sPLT, mDCV, cLLI listed |
+| APNG | acTL/fcTL/fdAT preserved; preview shows the browser's rendering |
+| Unknown chunks | Listed by name and size; a few associations by name (caBX, iDOT) marked **inferred** |
+| Trailing data | After IEND, measured and classified |
+| Not examined | Pixels, steganography, decoded IDAT |
+
+Experimental copy: removes text/XMP, eXIf (orientation kept if present), tIME; opt-in: unknown ancillary
+chunks, trailing data. Keeps IHDR, PLTE, IDAT, tRNS, colour and display chunks, pHYs, animation chunks.
+Unknown **critical** chunks, damaged structure or broken critical CRCs: no copy is offered.
+
+## PDF
+
+| Area | Coverage |
+| --- | --- |
+| Library (pdf.js, hardened) | Info dictionary (title, author, subject, keywords, creator, producer, dates, custom keys), XMP, page count, annotations and their authors (first 200 pages), AcroForm fields and values, attachment **names** (contents never opened), document-level and page/widget JavaScript triggers, link URLs, optional content (layers), signatures flag |
+| Raw scan (indicators, **inferred**) | `/JavaScript`, `/JS`, `/Launch`, `/OpenAction`, `/AA`, `/URI`, `/SubmitForm`, `/ImportData`, `/GoToR`, `/EmbeddedFile`, `/Encrypt`, `/ByteRange`, rich media; `#xx` name escapes decoded; trailer `/ID`; `%%EOF` count for incremental updates; version |
+| Encrypted | Reported; not opened; no passwords |
+| Not examined | Page text, images, drawings, hidden content on pages, signature validity, attachment contents, previous revisions' content, objects inside compressed object streams (raw scan cannot see them) |
+
+No PDF copy is offered. Preview is a PNG of page 1 drawn in the worker with annotations off; fonts that
+are not embedded may not render because font data is not fetched.
+
+## DOCX
+
+Not implemented. Not started: see plan 0001 for the decision.

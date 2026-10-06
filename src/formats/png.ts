@@ -443,7 +443,7 @@ export async function analysePng(bytes: Uint8Array): Promise<FormatAnalysis> {
 
   const coverage: CoverageItem[] = [
     { area: 'PNG chunk structure', state: scan.limitHit || scan.invalid || scan.truncated ? 'partial' : 'inspected', note: 'Every chunk header, length and checksum was examined; image data was not decoded.' },
-    { area: 'Text entries', state: 'partial', note: 'tEXt, zTXt and iTXt entries were read; compressed text is limited to a safe size.' },
+    { area: 'Text entries', state: 'partial', note: 'tEXt, zTXt and iTXt entries were read; compressed text is limited to a bounded size.' },
     { area: 'EXIF and XMP', state: 'partial', note: 'Common EXIF fields and well-known XMP properties were extracted.' },
     { area: 'Colour profile', state: 'partial', note: 'Only the profile header and description were read.' },
     { area: 'Unrecognised chunks', state: 'not-inspected', note: 'Chunks this tool does not know are listed with name and size, not decoded.' },
