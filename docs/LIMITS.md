@@ -23,7 +23,8 @@ All limits live in `src/core/limits.ts`. Changing one is a product decision: upd
 | PDF image size | 16 Mpx | pdf.js `maxImageSize` |
 | DOCX file | 32 MiB (a larger ZIP is not examined and stays an unsupported container) | Refused or treated as unsupported |
 | ZIP entries | 2,000 | Listing stops; finding added |
-| ZIP part read | 512 KiB per part, 6 MiB in total after decompression | Output cut; the rest is not read |
+| ZIP part read | 512 KiB per part (2 MiB for `word/document.xml`, 256 KiB for `[Content_Types].xml`), 6 MiB in total after decompression | Output cut; counts from a cut part are shown as "At least" and a limit finding is added |
+| Relationships per part | 2,000 | Limit finding added |
 | ZIP declared size | Flagged above 512 MiB declared or a 1000:1 ratio | Finding only; nothing is expanded beyond the part cap |
 | Job time | 30 s | Worker terminated, structured timeout error |
 | Concurrency | 1 job (structural, in `worker/client.ts`) | A new file supersedes the old job |

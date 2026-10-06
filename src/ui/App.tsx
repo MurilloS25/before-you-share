@@ -145,12 +145,14 @@ export function App({ client, urls: urlsProp }: Props) {
   };
 
   /** A cancelled or failed job ends the worker. Re-read the file (still selected in this tab) instead of leaving a dead end. */
-  const ensureSession = async (token: number): Promise<boolean> => {
+  const ensureSession = async (token: number, expectedSha: string | null): Promise<boolean> => {
     if (client.sessionOpen) return true;
     const f = file.current;
     if (!f) return false;
     const out = await client.analyse(f).promise;
-    return run.current === token && out.ok && out.payload.kind === 'analysis' && out.payload.supported;
+    if (run.current !== token || !out.ok || out.payload.kind !== 'analysis' || !out.payload.supported) return false;
+    // The file is read again from disk: refuse if it is no longer the file whose report is on screen.
+    return expectedSha === null || out.payload.report.fingerprint.sha256 === expectedSha;
   };
 
   const makeCopy = async () => {
@@ -159,9 +161,9 @@ export function App({ client, urls: urlsProp }: Props) {
     const base = view;
     if (base.copy.kind === 'done') urls.revoke(base.copy.result.url);
     setView({ ...base, copy: { kind: 'building', stage: 'building-copy' } });
-    if (!(await ensureSession(token))) {
+    if (!(await ensureSession(token, base.report.fingerprint.sha256))) {
       if (run.current !== token) return;
-      return setView({ ...base, copy: { kind: 'error', error: { code: 'worker-failure', message: 'The file could not be read again. Use "Clear and start over" and choose it again.' } } });
+      return setView({ ...base, copy: { kind: 'error', error: { code: 'worker-failure', message: 'The file could not be read again, or it changed on disk. Use "Clear and start over" and choose it again.' } } });
     }
     const job = client.transform(base.selected, { onProgress: (stage) => run.current === token && setView((v) => (v.kind === 'result' ? { ...v, copy: { kind: 'building', stage } } : v)) });
     const out = await job.promise;
@@ -218,9 +220,9 @@ export function App({ client, urls: urlsProp }: Props) {
     const base = view;
     if (base.pdfPreview.state === 'ready') urls.revoke(base.pdfPreview.url);
     setView({ ...base, pdfPreview: { state: 'loading' } });
-    if (!(await ensureSession(token))) {
+    if (!(await ensureSession(token, base.report.fingerprint.sha256))) {
       if (run.current !== token) return;
-      return setView({ ...base, pdfPreview: { state: 'error', message: 'The file could not be read again. Use "Clear and start over" and choose it again.' } });
+      return setView({ ...base, pdfPreview: { state: 'error', message: 'The file could not be read again, or it changed on disk. Use "Clear and start over" and choose it again.' } });
     }
     const job = client.previewPdf();
     const out = await job.promise;

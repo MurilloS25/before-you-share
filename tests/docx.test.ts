@@ -175,3 +175,101 @@ describe('DOCX hostile packages', () => {
     expect(looksLikeDocx(readZipDirectory(fixture('zip-not-docx.zip')))).toBe(false);
   });
 });
+
+describe('DOCX XML handling (review findings)', () => {
+  const pkg = (parts: Record<string, string>) =>
+    zip([
+      { name: '[Content_Types].xml', data: enc('<Types/>') },
+      { name: 'word/document.xml', data: enc(parts['word/document.xml'] ?? '<w:document/>') },
+      ...Object.entries(parts)
+        .filter(([n]) => n !== 'word/document.xml')
+        .map(([name, xml]) => ({ name, data: enc(xml) })),
+    ]);
+  const run = async (parts: Record<string, string>) => {
+    const out = await analyseBytes(pkg(parts), { name: 'x.docx', type: '' });
+    if (!out.supported) throw new Error('unsupported');
+    return out.report;
+  };
+
+  it('pairs custom property values with the right names even with non-string properties', async () => {
+    const r = await run({
+      'docProps/custom.xml':
+        '<Properties xmlns:vt="v"><property name="Count"><vt:i4>5</vt:i4></property><property name="Empty"><vt:lpwstr></vt:lpwstr></property><property name="Secret"><vt:lpwstr>hunter2</vt:lpwstr></property></Properties>',
+    });
+    expect(valueOf(r, 'docx.custom')).toBe('3 properties: Count = 5; Empty; Secret = hunter2');
+  });
+
+  it('finds external relationships however the tag is written', async () => {
+    const r = await run({
+      'word/_rels/document.xml.rels':
+        "<Relationships><Relationship Id='r1' Type='x/attachedTemplate' Target='file:///C:/Users/a/b.dotm' TargetMode='External'/>" +
+        '<Relationship\n Id="r2" Type="x/oleObject" Target="file:///C:/Users/bob/a>b.dotm" TargetMode="External"/>' +
+        '<Relationship Id="r3" Type="x/image" Target="media/i.png"/></Relationships>',
+    });
+    const v = valueOf(r, 'docx.external')!;
+    expect(v).toContain('2 external references');
+    expect(v).toContain('a>b.dotm');
+    expect(v).toContain('file:///C:/Users/a/b.dotm');
+  });
+
+  it('reports a cap on relationships instead of silently dropping the rest', async () => {
+    const many = Array.from({ length: 2100 }, (_, i) => `<Relationship Id="r${i}" Type="x/image" Target="m/${i}.png"/>`).join('');
+    const r = await run({ 'word/_rels/document.xml.rels': `<Relationships>${many}</Relationships>` });
+    expect(byCode(r, 'docx.limit').some((f) => /2,000 relationships/.test(f.value ?? ''))).toBe(true);
+  });
+
+  it('counts tracked changes and hidden text regardless of whitespace, and ignores XML comments and CDATA', async () => {
+    const r = await run({
+      'word/document.xml':
+        '<w:document><w:body><w:ins\n w:id="1" w:author="Real Author"><w:r/></w:ins><w:del\tw:id="2" w:author="Other"><w:r/></w:del>' +
+        '<!-- <w:ins w:author="Fake"/> <w:vanish/> --><![CDATA[<w:ins w:author="Fake2"/>]]>' +
+        '<w:r><w:rPr><w:vanish/></w:rPr></w:r><w:r><w:rPr><w:vanish w:val="0"/></w:rPr></w:r></w:body></w:document>',
+    });
+    expect(valueOf(r, 'docx.tracked-changes')).toContain('1 insertion and 1 deletion');
+    expect(valueOf(r, 'docx.tracked-authors')).toBe('Real Author; Other');
+    expect(valueOf(r, 'docx.hidden-text')).toContain('1 run');
+  });
+
+  it('does not stop at a very long attribute value and matches whole attribute names', async () => {
+    const r = await run({
+      'word/document.xml': `<w:document><w:ins w:author="${'A'.repeat(500)}"/><w:ins w:author="Bob" w:rename="NotAnAuthor"/></w:document>`,
+    });
+    expect(valueOf(r, 'docx.tracked-authors')).toContain('Bob');
+    expect(valueOf(r, 'docx.tracked-authors')).not.toContain('NotAnAuthor');
+  });
+
+  it('reads properties with any namespace prefix and CDATA values', async () => {
+    const r = await run({
+      'docProps/core.xml': '<d:coreProperties xmlns:d="x"><d:creator><![CDATA[Jane <Doe> & Co]]></d:creator><d:title>a<!-- x > y -->b</d:title></d:coreProperties>',
+    });
+    expect(valueOf(r, 'docx.author')).toBe('Jane <Doe> & Co');
+    expect(valueOf(r, 'docx.property')).toBe('ab');
+  });
+
+  it('says counts are lower bounds when a part was read only in part', async () => {
+    const big = '<w:document><w:body>' + '<w:ins w:id="1" w:author="A"/>'.repeat(40_000) + '</w:body></w:document>';
+    const r = await run({ 'word/document.xml': big });
+    // 40,000 insertions are about 1.1 MB: below the 2 MiB document cap, so counted in full
+    expect(valueOf(r, 'docx.tracked-changes')).toContain('40000 insertions');
+    const huge = '<w:document>' + '<w:ins w:author="A"/>'.repeat(120_000) + '</w:document>';
+    const r2 = await run({ 'word/document.xml': huge });
+    expect(valueOf(r2, 'docx.tracked-changes')).toMatch(/^At least /);
+    expect(byCode(r2, 'docx.limit').length).toBeGreaterThan(0);
+    expect(byCode(r2, 'docx.tracked-changes')[0]!.status).toBe('inferred');
+  });
+
+  it('coverage never claims comments and tracked changes were fully inspected', async () => {
+    const r = await analyseFixture('docx-comments-tracked.docx');
+    expect(r.coverage.find((c) => c.area === 'Comments and tracked changes')!.state).toBe('partial');
+  });
+
+  it('refuses a part whose local header name differs from the directory', async () => {
+    const good = fixture('docx-basic.docx');
+    const bad = Uint8Array.from(good);
+    const at = Buffer.from(bad).indexOf('docProps/core.xml');
+    bad[at] = 0x44; // local header now says "DocProps/core.xml"
+    const out = await analyseBytes(bad, { name: 'x.docx', type: '' });
+    if (!out.supported) throw new Error('unsupported');
+    expect(out.report.findings.some((f) => f.code === 'docx.malformed' && /local header name differs/.test(f.value ?? ''))).toBe(true);
+  });
+});

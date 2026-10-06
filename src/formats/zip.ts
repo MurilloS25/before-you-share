@@ -22,6 +22,7 @@ export interface ZipDirectory {
   declaredUncompressed: number;
 }
 
+const utf8Length = (s: string): number => new TextEncoder().encode(s).length;
 const EOCD = 0x06054b50;
 const CDH = 0x02014b50;
 const LFH = 0x04034b50;
@@ -108,6 +109,8 @@ export async function readZipEntry(bytes: Uint8Array, e: ZipEntry, max: number):
   if (!r.has(e.localOffset, 30) || r.u32(e.localOffset, true) !== LFH) return { bytes: new Uint8Array(0), truncated: false, error: 'bad local header' };
   const nameLen = r.u16(e.localOffset + 26, true);
   const extraLen = r.u16(e.localOffset + 28, true);
+  // The local header must agree with the central directory about the name; a mismatch is a sign of a crafted archive.
+  if (nameLen !== utf8Length(e.name) || utf8(r.slice(e.localOffset + 30, nameLen)) !== e.name) return { bytes: new Uint8Array(0), truncated: false, error: 'local header name differs from the directory' };
   const start = e.localOffset + 30 + nameLen + extraLen;
   if (!r.has(start, e.compressedSize)) return { bytes: new Uint8Array(0), truncated: false, error: 'data outside file' };
   const data = bytes.subarray(start, start + e.compressedSize);

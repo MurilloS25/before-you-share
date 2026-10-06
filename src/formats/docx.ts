@@ -3,63 +3,20 @@ import { FindingSink } from '../core/findings';
 import { LIMITS } from '../core/limits';
 import type { CoverageItem, DocxSummary } from '../core/types';
 import type { FormatAnalysis } from './common';
-import { xmpValues } from './xmp';
+import { decodeEntities } from './xmp';
+import { distinctAttrValues, elementText, findClose, startTags, stripXmlNoise } from './xml';
 import { readZipDirectory, readZipEntry, type ZipDirectory, type ZipEntry } from './zip';
 
 export interface DocxAnalysis extends FormatAnalysis {
   docx: DocxSummary;
 }
 
+const DOCUMENT_CAP = 2 * 1024 * 1024;
+
 /** True when the ZIP looks like a Word package: it has the content-types part and the main document part. */
 export function looksLikeDocx(dir: ZipDirectory): boolean {
   const names = new Set(dir.entries.map((e) => e.name));
   return names.has('[Content_Types].xml') && names.has('word/document.xml');
-}
-
-function count(xml: string, needle: string, cap = 100_000): number {
-  let n = 0;
-  let i = xml.indexOf(needle);
-  while (i !== -1 && n < cap) {
-    n++;
-    i = xml.indexOf(needle, i + needle.length);
-  }
-  return n;
-}
-
-function distinctAttr(xml: string, attr: string, cap: number): string[] {
-  const out = new Set<string>();
-  const needle = `${attr}="`;
-  let i = xml.indexOf(needle);
-  let guard = 0;
-  while (i !== -1 && out.size < cap && guard++ < 200_000) {
-    const start = i + needle.length;
-    const end = xml.indexOf('"', start);
-    if (end === -1 || end - start > 300) break;
-    out.add(xml.slice(start, end));
-    i = xml.indexOf(needle, end);
-  }
-  return [...out];
-}
-
-function relationships(xml: string): Array<{ type: string; target: string; external: boolean }> {
-  const out: Array<{ type: string; target: string; external: boolean }> = [];
-  let i = xml.indexOf('<Relationship ');
-  let guard = 0;
-  while (i !== -1 && guard++ < 2000) {
-    const end = xml.indexOf('>', i);
-    if (end === -1) break;
-    const tag = xml.slice(i, end);
-    const attr = (name: string): string => {
-      const k = tag.indexOf(`${name}="`);
-      if (k === -1) return '';
-      const s = k + name.length + 2;
-      const e = tag.indexOf('"', s);
-      return e === -1 ? '' : tag.slice(s, e);
-    };
-    out.push({ type: attr('Type').split('/').pop() ?? '', target: attr('Target'), external: attr('TargetMode') === 'External' });
-    i = xml.indexOf('<Relationship ', end);
-  }
-  return out;
 }
 
 export async function analyseDocx(bytes: Uint8Array, dirIn?: ZipDirectory): Promise<DocxAnalysis> {
@@ -71,7 +28,6 @@ export async function analyseDocx(bytes: Uint8Array, dirIn?: ZipDirectory): Prom
 
   // ---- package health (never extracts to disk; names are text)
   const where = 'DOCX package (ZIP central directory)';
-  let suspicious = false;
   const dupes = dir.entries.length - byName.size;
   const odd = dir.entries.filter((e) => /(^|[\\/])\.\.([\\/]|$)/.test(e.name) || e.name.startsWith('/') || /^[a-zA-Z]:/.test(e.name) || e.name.includes('\\')).map((e) => e.name);
   const worstRatio = dir.entries.reduce((m, e) => Math.max(m, e.compressedSize > 0 ? e.uncompressedSize / e.compressedSize : e.uncompressedSize > 0 ? Infinity : 0), 0);
@@ -83,15 +39,20 @@ export async function analyseDocx(bytes: Uint8Array, dirIn?: ZipDirectory): Prom
     location: { kind: 'structure', path: 'ZIP central directory' },
   });
   if (dupes > 0) {
-    suspicious = true;
-    sink.add('docx.zip-suspicious', { value: `${dupes} duplicated entry name${dupes === 1 ? '' : 's'}; only the first of each is read`, source: where, status: 'suspicious' });
+    sink.add('docx.zip-suspicious', {
+      value: `${dupes} duplicated entry name${dupes === 1 ? '' : 's'}. Only the first of each is read here; other programs may read the last, so they could show different values`,
+      source: where,
+      status: 'suspicious',
+    });
   }
   if (odd.length > 0) {
-    suspicious = true;
-    sink.add('docx.zip-suspicious', { value: `Entry names that climb out of the package or use absolute or backslash paths: ${odd.slice(0, 5).map((n) => displayText(n, 80)).join(', ')}. Nothing is extracted.`, source: where, status: 'suspicious' });
+    sink.add('docx.zip-suspicious', {
+      value: `Entry names that climb out of the package or use absolute or backslash paths: ${odd.slice(0, 5).map((n) => displayText(n, 80)).join(', ')}. Nothing is extracted.`,
+      source: where,
+      status: 'suspicious',
+    });
   }
   if (dir.declaredUncompressed > LIMITS.maxZipDeclaredTotal || worstRatio > LIMITS.maxZipRatio) {
-    suspicious = true;
     sink.add('docx.zip-suspicious', {
       value: `The package declares ${dir.declaredUncompressed.toLocaleString('en-US')} bytes when unpacked${Number.isFinite(worstRatio) ? ` and an expansion ratio up to ${Math.round(worstRatio).toLocaleString('en-US')}:1` : ''}. This can indicate a compression bomb. Nothing is expanded beyond ${LIMITS.maxZipPartBytes / 1024} KiB per part.`,
       source: where,
@@ -105,9 +66,9 @@ export async function analyseDocx(bytes: Uint8Array, dirIn?: ZipDirectory): Prom
   if (dir.limitHit) sink.add('docx.limit', { value: `More than ${LIMITS.maxZipEntries} entries; the rest were not listed`, source: where, status: 'unsupported' });
   if (dir.invalid) sink.add('docx.malformed', { value: dir.invalid, source: where, status: 'suspicious' });
 
-  // ---- parts we read (bounded, text only)
+  // ---- parts we read (bounded, text only; comments, processing instructions and CDATA are normalised first)
   let budget: number = LIMITS.maxZipTotalInflate;
-  let partial = false;
+  const truncated = new Set<string>();
   const read = async (name: string, cap: number = LIMITS.maxZipPartBytes): Promise<string | null> => {
     const e = byName.get(name);
     if (!e || budget <= 0) return null;
@@ -117,27 +78,28 @@ export async function analyseDocx(bytes: Uint8Array, dirIn?: ZipDirectory): Prom
       if (part.error !== 'encrypted') sink.add('docx.malformed', { value: `The part ${displayText(name, 60)} could not be read (${part.error})`, source: `DOCX part ${name}`, status: 'suspicious', confidence: 'medium' });
       return null;
     }
-    if (part.truncated) partial = true;
+    if (part.truncated) truncated.add(name);
     summary.partsRead++;
-    return utf8(part.bytes);
+    return stripXmlNoise(utf8(part.bytes));
   };
-  const prop = (xml: string, tag: string, code: string, label: string | undefined, part: string): void => {
-    const v = xmpValues(xml, tag)[0];
-    if (v) sink.add(code, { label, value: v, source: `${part}, <${tag}>`, location: { kind: 'structure', path: `${part} > ${tag}` } });
+  const atLeast = (part: string): string => (truncated.has(part) ? 'At least ' : '');
+  const prop = (xml: string, local: string, code: string, label: string | undefined, part: string): void => {
+    const v = elementText(xml, local);
+    if (v) sink.add(code, { label, value: v, source: `${part}, <${local}>`, location: { kind: 'structure', path: `${part} > ${local}` } });
   };
 
   const core = await read('docProps/core.xml');
   if (core) {
-    prop(core, 'dc:creator', 'docx.author', undefined, 'docProps/core.xml');
-    prop(core, 'cp:lastModifiedBy', 'docx.last-modified-by', undefined, 'docProps/core.xml');
-    prop(core, 'dcterms:created', 'docx.created', undefined, 'docProps/core.xml');
-    prop(core, 'dcterms:modified', 'docx.modified', undefined, 'docProps/core.xml');
-    prop(core, 'dc:title', 'docx.property', 'Title', 'docProps/core.xml');
-    prop(core, 'dc:subject', 'docx.property', 'Subject', 'docProps/core.xml');
-    prop(core, 'cp:keywords', 'docx.property', 'Keywords', 'docProps/core.xml');
-    prop(core, 'dc:description', 'docx.property', 'Description (comments field)', 'docProps/core.xml');
-    prop(core, 'cp:category', 'docx.property', 'Category', 'docProps/core.xml');
-    prop(core, 'cp:revision', 'docx.revision', undefined, 'docProps/core.xml');
+    prop(core, 'creator', 'docx.author', undefined, 'docProps/core.xml');
+    prop(core, 'lastModifiedBy', 'docx.last-modified-by', undefined, 'docProps/core.xml');
+    prop(core, 'created', 'docx.created', undefined, 'docProps/core.xml');
+    prop(core, 'modified', 'docx.modified', undefined, 'docProps/core.xml');
+    prop(core, 'title', 'docx.property', 'Title', 'docProps/core.xml');
+    prop(core, 'subject', 'docx.property', 'Subject', 'docProps/core.xml');
+    prop(core, 'keywords', 'docx.property', 'Keywords', 'docProps/core.xml');
+    prop(core, 'description', 'docx.property', 'Description (comments field)', 'docProps/core.xml');
+    prop(core, 'category', 'docx.property', 'Category', 'docProps/core.xml');
+    prop(core, 'revision', 'docx.revision', undefined, 'docProps/core.xml');
   }
   const app = await read('docProps/app.xml');
   if (app) {
@@ -150,53 +112,58 @@ export async function analyseDocx(bytes: Uint8Array, dirIn?: ZipDirectory): Prom
   }
   const custom = await read('docProps/custom.xml');
   if (custom) {
-    const names = distinctAttr(custom, 'name', 20);
-    if (names.length > 0) {
-      const values = xmpValues(custom, 'vt:lpwstr').slice(0, 20);
+    const { tags } = startTags(custom, 'property', 500);
+    const shown: string[] = [];
+    for (const t of tags.slice(0, 20)) {
+      const close = t.selfClosing ? -1 : findClose(custom, t);
+      const value = close === -1 ? '' : decodeEntities(custom.slice(t.end, close).replace(/<[^>]*>/g, '')).trim();
+      shown.push(`${displayText(t.attrs.get('name') ?? '(unnamed)', 40)}${value ? ` = ${displayText(value, 60)}` : ''}`);
+    }
+    if (tags.length > 0) {
       sink.add('docx.custom', {
-        value: `${names.length} propert${names.length === 1 ? 'y' : 'ies'}: ${names.map((n, i) => `${displayText(n, 40)}${values[i] ? ` = ${displayText(values[i]!, 60)}` : ''}`).join('; ')}`,
+        value: `${tags.length} propert${tags.length === 1 ? 'y' : 'ies'}${tags.length > 20 ? ' (first 20 shown)' : ''}: ${shown.join('; ')}`,
         source: 'docProps/custom.xml',
         location: { kind: 'structure', path: 'docProps/custom.xml' },
       });
     }
   }
-  const types = await read('[Content_Types].xml', 64 * 1024);
+  const types = await read('[Content_Types].xml', 256 * 1024);
   if (types && /macroEnabled|vbaProject/i.test(types)) summary.macroEnabled = true;
 
   // ---- comments and tracked changes (counts, authors and dates only; text is not shown)
   const comments = await read('word/comments.xml');
   if (comments) {
-    const n = count(comments, '<w:comment ');
+    const { values: authors, total: n } = distinctAttrValues(comments, 'comment', 'author', 20);
+    const dates = distinctAttrValues(comments, 'comment', 'date', 3).values;
     if (n > 0) {
-      const authors = distinctAttr(comments, 'w:author', 20);
-      const dates = distinctAttr(comments, 'w:date', 3);
       sink.add('docx.comments', {
-        value: `${n} comment${n === 1 ? '' : 's'}${dates.length ? `, for example dated ${dates.join(', ')}` : ''}. Comment text is not shown here.`,
+        value: `${atLeast('word/comments.xml')}${n} comment${n === 1 ? '' : 's'}${dates.length ? `, for example dated ${dates.join(', ')}` : ''}. Comment text is not shown here.`,
         source: 'word/comments.xml',
         location: { kind: 'structure', path: 'word/comments.xml' },
       });
       if (authors.length > 0) sink.add('docx.comment-authors', { value: authors.map((a) => displayText(a, 80)).join('; '), source: 'word/comments.xml, w:author', location: { kind: 'structure', path: 'word/comments.xml' } });
     }
   }
-  const doc = await read('word/document.xml', 2 * 1024 * 1024);
+  const doc = await read('word/document.xml', DOCUMENT_CAP);
   if (doc) {
-    const ins = count(doc, '<w:ins ');
-    const del = count(doc, '<w:del ');
-    if (ins + del > 0) {
-      const authors = distinctAttr(doc, 'w:author', 20);
+    const ins = distinctAttrValues(doc, 'ins', 'author', 20);
+    const del = distinctAttrValues(doc, 'del', 'author', 20);
+    if (ins.total + del.total > 0) {
+      const authors = [...new Set([...ins.values, ...del.values])].slice(0, 20);
       sink.add('docx.tracked-changes', {
-        value: `${ins} insertion${ins === 1 ? '' : 's'} and ${del} deletion${del === 1 ? '' : 's'} are recorded. Deleted text may still be stored in the file.`,
+        value: `${atLeast('word/document.xml')}${ins.total} insertion${ins.total === 1 ? '' : 's'} and ${del.total} deletion${del.total === 1 ? '' : 's'} are recorded. Deleted text may still be stored in the file.`,
         source: 'word/document.xml, w:ins and w:del',
         location: { kind: 'structure', path: 'word/document.xml' },
+        status: truncated.has('word/document.xml') ? 'inferred' : 'verified',
       });
       if (authors.length > 0) sink.add('docx.tracked-authors', { value: authors.map((a) => displayText(a, 80)).join('; '), source: 'word/document.xml, w:author', location: { kind: 'structure', path: 'word/document.xml' } });
     }
-    const hidden = count(doc, '<w:vanish');
-    if (hidden > 0) sink.add('docx.hidden-text', { value: `${hidden} run${hidden === 1 ? '' : 's'} formatted as hidden text`, source: 'word/document.xml, w:vanish', location: { kind: 'structure', path: 'word/document.xml' } });
-    const rsids = distinctAttr(doc, 'w:rsidR', 5000);
-    if (rsids.length > 1) {
+    const hidden = startTags(doc, 'vanish', 100_000).tags.filter((t) => !['0', 'false', 'off'].includes(t.attrs.get('val') ?? '')).length;
+    if (hidden > 0) sink.add('docx.hidden-text', { value: `${atLeast('word/document.xml')}${hidden} run${hidden === 1 ? '' : 's'} formatted as hidden text`, source: 'word/document.xml, w:vanish', location: { kind: 'structure', path: 'word/document.xml' } });
+    const rsids = distinctAttrValues(doc, 'p', 'rsidR', 5000);
+    if (rsids.values.length > 1) {
       sink.add('docx.rsid', {
-        value: `${rsids.length >= 5000 ? 'At least 5,000' : rsids.length} distinct revision-session identifiers`,
+        value: `${rsids.values.length >= 5000 ? 'At least 5,000' : rsids.values.length} distinct revision-session identifiers`,
         source: 'word/document.xml, w:rsidR',
         location: { kind: 'structure', path: 'word/document.xml' },
       });
@@ -204,11 +171,16 @@ export async function analyseDocx(bytes: Uint8Array, dirIn?: ZipDirectory): Prom
   }
 
   // ---- external references (templates, linked files, links)
-  const externals: Array<{ type: string; target: string; part: string }> = [];
+  const externals: Array<{ type: string; target: string }> = [];
+  let relCapped = false;
   for (const rels of ['word/_rels/document.xml.rels', 'word/_rels/settings.xml.rels', 'word/_rels/footnotes.xml.rels']) {
     const x = await read(rels);
-    if (x) for (const r of relationships(x)) if (r.external) externals.push({ type: r.type, target: r.target, part: rels });
+    if (!x) continue;
+    const { tags, capped } = startTags(x, 'Relationship', 2000);
+    relCapped ||= capped;
+    for (const t of tags) if (t.attrs.get('TargetMode') === 'External') externals.push({ type: (t.attrs.get('Type') ?? '').split('/').pop() ?? '', target: t.attrs.get('Target') ?? '' });
   }
+  if (relCapped) sink.add('docx.limit', { value: 'More than 2,000 relationships in one part; the rest were not examined', source: 'Relationship parts', status: 'unsupported' });
   if (externals.length > 0) {
     const links = externals.filter((r) => r.type === 'hyperlink').length;
     const others = externals.filter((r) => r.type !== 'hyperlink');
@@ -225,7 +197,7 @@ export async function analyseDocx(bytes: Uint8Array, dirIn?: ZipDirectory): Prom
 
   // ---- embedded content and active features by entry name
   const named = (re: RegExp): ZipEntry[] => dir.entries.filter((e) => re.test(e.name));
-  const media = named(/^word\/media\//);
+  const media = named(/^word\/media\//i);
   if (media.length > 0) {
     sink.add('docx.media', {
       value: `${media.length} file${media.length === 1 ? '' : 's'}, ${media.reduce((s, e) => s + e.uncompressedSize, 0).toLocaleString('en-US')} bytes declared: ${media.slice(0, 6).map((e) => displayText(e.name.slice(11), 40)).join(', ')}`,
@@ -233,15 +205,15 @@ export async function analyseDocx(bytes: Uint8Array, dirIn?: ZipDirectory): Prom
       location: { kind: 'structure', path: 'word/media' },
     });
   }
-  const objects = named(/^word\/(embeddings|activeX)\//);
+  const objects = named(/^word\/(embeddings|activeX)\//i);
   if (objects.length > 0) {
     sink.add('docx.embedded-objects', { value: `${objects.length} embedded object file${objects.length === 1 ? '' : 's'}: ${objects.slice(0, 6).map((e) => displayText(e.name, 50)).join(', ')}`, source: 'DOCX package entries', location: { kind: 'structure', path: 'word/embeddings' } });
   }
-  const thumb = named(/^docProps\/thumbnail\./);
+  const thumb = named(/^docProps\/thumbnail\./i);
   if (thumb.length > 0) sink.add('docx.thumbnail', { value: `${thumb[0]!.uncompressedSize.toLocaleString('en-US')} bytes declared`, source: 'docProps/thumbnail', location: { kind: 'structure', path: 'docProps/thumbnail' } });
-  const customXml = named(/^customXml\//);
+  const customXml = named(/^customXml\//i);
   if (customXml.length > 0) sink.add('docx.custom-xml', { value: `${customXml.length} part${customXml.length === 1 ? '' : 's'} under customXml`, source: 'DOCX package entries', location: { kind: 'structure', path: 'customXml' } });
-  const macros = named(/vbaProject|\.bin$/i).filter((e) => /vbaProject/i.test(e.name));
+  const macros = named(/vbaProject/i);
   if (macros.length > 0 || summary.macroEnabled) {
     summary.macroEnabled = true;
     sink.add('docx.macros', {
@@ -251,19 +223,27 @@ export async function analyseDocx(bytes: Uint8Array, dirIn?: ZipDirectory): Prom
       limitations: ['The macro project was not opened or analysed, and it is never run.'],
     });
   }
-  if (named(/^_xmlsignatures\//).length > 0) sink.add('docx.signature', { value: 'The package contains digital signature parts', source: 'DOCX package entries', status: 'verified' });
+  if (named(/^_xmlsignatures\//i).length > 0) sink.add('docx.signature', { value: 'The package contains digital signature parts', source: 'DOCX package entries', status: 'verified' });
 
+  if (truncated.size > 0) {
+    sink.add('docx.limit', {
+      value: `Parts larger than the reading limit were read only in part: ${[...truncated].map((n) => displayText(n, 50)).join(', ')}. Counts from them may be too low`,
+      source: 'Safety limit',
+      status: 'unsupported',
+    });
+  }
+
+  const propsFull = core !== null && app !== null;
   const coverage: CoverageItem[] = [
-    { area: 'Package structure', state: dir.invalid || dir.limitHit || dir.zip64 ? 'partial' : 'inspected', note: 'The ZIP directory was read; nothing was extracted to disk and parts are read in memory under size limits.' },
-    { area: 'Document properties', state: core || app ? 'inspected' : 'partial', note: 'core, app and custom property parts were read when present.' },
-    { area: 'Comments and tracked changes', state: partial ? 'partial' : 'inspected', note: 'Counted with authors and dates. The text of comments and of deleted content is not shown.' },
+    { area: 'Package structure', state: dir.invalid || dir.limitHit || dir.zip64 ? 'partial' : 'inspected', note: 'The ZIP directory was read; nothing was extracted to disk and parts are read in memory under size limits. Local headers and the directory were not cross-checked in full.' },
+    { area: 'Document properties', state: propsFull ? 'inspected' : 'partial', note: propsFull ? 'core and app property parts were read (custom properties when present).' : 'One of the core or app property parts is missing or could not be read.' },
+    { area: 'Comments and tracked changes', state: 'partial', note: 'Only word/document.xml and word/comments.xml were examined. Headers, footers, footnotes, endnotes and extended comment parts were not. Text of comments and deleted content is not shown.' },
     { area: 'Revision history', state: 'partial', note: 'Revision-session identifiers are counted; earlier versions are not reconstructed.' },
     { area: 'Media, embedded objects and macros', state: 'partial', note: 'Listed by name and size from the package directory. They are not opened.' },
     { area: 'Document text, headers, footers, footnotes', state: 'not-inspected', note: 'The visible content is not analysed.' },
     { area: 'Content inside embedded files', state: 'not-inspected', note: 'Images and objects inside the package may carry their own metadata.' },
   ];
   sink.coverage.push(...coverage);
-  void suspicious;
   return {
     findings: sink.findings,
     coverage: sink.coverage,

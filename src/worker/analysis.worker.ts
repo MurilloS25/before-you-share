@@ -56,9 +56,12 @@ async function analyse(jobId: number, file: File): Promise<ResultPayload> {
   progress(jobId, 'reading', 0);
   // Read only the first bytes to identify the format, so oversized or unsupported files are never fully loaded.
   const head = new Uint8Array(await file.slice(0, SNIFF_BYTES).arrayBuffer());
-  const detection = detectFormat(head);
+  let detection = detectFormat(head);
   // A ZIP may be a DOCX; it is read (up to the DOCX limit) so its directory can be checked. Any other unknown content is not read.
   const maybeDocx = !detection.format && detection.mime === 'application/zip' && file.size <= LIMITS.maxFileBytes.docx;
+  if (!detection.format && detection.mime === 'application/zip' && !maybeDocx) {
+    detection = { ...detection, label: `ZIP-based container larger than the ${Math.round(LIMITS.maxFileBytes.docx / 1048576)} MiB this tool examines as a Word document` };
+  }
   if (!detection.format && !maybeDocx) {
     return { kind: 'analysis', supported: false, fingerprint: buildFingerprint(file.size, file.name, file.type, detection, null), detection };
   }
