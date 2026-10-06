@@ -1,0 +1,41 @@
+{
+  "name": "before-you-share",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Experimental, local-first tool that shows what a file may reveal before you share it.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 4173 --strictPort",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:fuzz": "vitest run --config vitest.fuzz.config.ts",
+    "fixtures": "tsx scripts/generate-fixtures.ts",
+    "fixtures:check": "tsx scripts/generate-fixtures.ts --check",
+    "audit:build": "tsx scripts/audit-build.ts",
+    "test:e2e": "playwright test",
+    "check": "npm run typecheck && npm test && npm run fixtures:check"
+  },
+  "dependencies": {
+    "pdfjs-dist": "^6.4.299",
+    "preact": "^11.0.0"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.63.0",
+    "@preact/preset-vite": "^2.10.6",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/preact": "^3.2.4",
+    "@testing-library/user-event": "^14.6.7",
+    "@types/node": "^26.6.4",
+    "fast-check": "^4.10.2",
+    "jpeg-js": "^0.4.4",
+    "jsdom": "^29.1.1",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.2",
+    "vitest": "^5.0.3"
+  }
+}
