@@ -75,7 +75,7 @@ export function CopyPanel({ report, groups, selected, onToggle, onCreate, busy }
           </label>
         ))}
       </fieldset>
-      <div class="plan" aria-live="polite">
+      <div class="plan">
         <div>
           <h3 class="plan-title">Will be removed</h3>
           <p>{removing.length === 0 ? 'Nothing is selected.' : `${plural(removing.length, 'finding')} from the list above.`}</p>
@@ -102,9 +102,12 @@ export function CopyPanel({ report, groups, selected, onToggle, onCreate, busy }
             <li key={t}>{t}</li>
           ))}
         </ul>
-        <p class="fine-print">Other hidden information may remain after any removal. Open and check the copy before sharing it.</p>
+        <p class="fine-print">
+          The copy is named after the original file name with ".experimental-copy" added, so the stem of the name is kept. Rename it if the name itself is
+          sensitive. Other hidden information may remain after any removal. Open and check the copy before sharing it.
+        </p>
       </div>
-      <button type="button" class="button button-primary" disabled={busy || selected.length === 0} onClick={onCreate}>
+      <button type="button" id="make-copy" class="button button-primary" disabled={busy || selected.length === 0} onClick={onCreate}>
         Make experimental copy
       </button>
     </section>

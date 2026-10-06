@@ -167,7 +167,7 @@ export async function verifyCopy(
     id: 'original-untouched',
     label: 'The original bytes in memory were not modified',
     status: originalSha === null || afterSha === null ? 'skipped' : originalSha === afterSha ? 'pass' : 'fail',
-    detail: originalSha === null ? 'Hashing is unavailable in this browser context.' : originalSha === afterSha ? 'The original was only read. Your file on disk is never written to.' : 'The in-memory original changed.',
+    detail: originalSha === null ? 'Hashing is unavailable in this browser context.' : originalSha === afterSha ? 'The original bytes held in memory were only read. This tool never writes to your file on disk.' : 'The in-memory original changed.',
   });
 
   let pixelsIdentical: boolean | null = null;

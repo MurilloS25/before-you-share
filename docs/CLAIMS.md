@@ -7,8 +7,10 @@ The tool may say:
 - "Verified" only for values read directly from the file; "Inferred" for indicators from names or
   patterns; "Suspicious" for unusual or inconsistent structure (never "malicious"); "Not supported" and
   "Unavailable" where the tool cannot read something.
-- "Local": the file is read and processed in this browser tab; the page cannot make network requests
-  (enforced by CSP and tested). Not "private" or "secure" without that context.
+- "Local": the file is read and processed in this browser tab. A CSP (`connect-src 'none'`, no third-party
+  origins) blocks cross-origin connections, and tests plus a build audit check that the app makes only
+  same-origin GETs of its own static files. The CSP alone does not stop same-origin requests or navigation.
+  Not "private" or "secure" without that context.
 
 The tool must not say:
 

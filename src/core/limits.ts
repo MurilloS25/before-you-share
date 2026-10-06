@@ -31,11 +31,8 @@ export const LIMITS = {
   maxIccBytes: 4 * MiB,
   /** PDF */
   maxPdfPagesInspected: 200,
-  maxPdfScanTokens: 5_000,
   /** Wall-clock budget for one analysis or transformation job. */
   jobTimeoutMs: 30_000,
-  /** The worker pool never runs more than this many jobs at once. */
-  maxConcurrentJobs: 1,
 } as const;
 
 export type FormatId = 'jpeg' | 'png' | 'pdf';

@@ -28,7 +28,10 @@ export async function compareDecoded(original: Uint8Array, copy: Uint8Array, for
   if (typeof createImageBitmap !== 'function' || typeof OffscreenCanvas === 'undefined') {
     return { dimensionsEqual: null, pixelsIdentical: null, detail: 'This browser cannot decode images in a worker, so the visual comparison was skipped.', failed: false };
   }
-  if (declared && declared.width * declared.height > LIMITS.maxComparePixels) {
+  if (!declared) {
+    return { dimensionsEqual: null, pixelsIdentical: null, detail: 'The image size is not stored in the usual place, so no decode was attempted.', failed: false };
+  }
+  if (declared.width * declared.height > LIMITS.maxComparePixels) {
     return { dimensionsEqual: null, pixelsIdentical: null, detail: 'The image is too large for an exact pixel comparison in this tool.', failed: false };
   }
   let a: ImageBitmap | null = null;

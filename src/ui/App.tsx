@@ -14,7 +14,7 @@ import { FileMap } from './components/FileMap';
 import { CoverageList, FindingsByCategory } from './components/Findings';
 import { CopyPanel } from './components/CopyPanel';
 import { VerificationView, type CopyResult } from './components/Verification';
-import { downloadName, formatBytes, plural, CATEGORY_LABEL } from './lib/format';
+import { downloadName, formatBytes, plural, CATEGORY_LABEL, STATUS_HELP, STATUS_LABEL } from './lib/format';
 import { MIME, ObjectUrlRegistry } from './lib/urls';
 
 interface Props {
@@ -50,7 +50,6 @@ export function App({ client, urls: urlsProp }: Props) {
   const [view, setView] = useState<View>({ kind: 'idle' });
   const run = useRef(0);
   const file = useRef<File | null>(null);
-  const resultHeading = useRef<HTMLHeadingElement>(null);
   const [announce, setAnnounce] = useState('');
 
   // Leaving the page or unmounting releases the worker and every object URL.
@@ -62,9 +61,34 @@ export function App({ client, urls: urlsProp }: Props) {
     [client, urls],
   );
 
+  // Move focus to the page heading whenever the screen changes, so keyboard and screen reader users start at the new content.
   useEffect(() => {
-    if (view.kind === 'result') resultHeading.current?.focus();
-  }, [view.kind === 'result' ? view.report : null]);
+    if (view.kind !== 'idle') document.querySelector<HTMLElement>('main h1')?.focus();
+  }, [view.kind]);
+
+  // A file dropped anywhere outside the plate must never be opened by the browser itself (that would render it natively).
+  // On the start screen a drop anywhere is taken as intake; elsewhere it is ignored.
+  const viewKind = useRef(view.kind);
+  viewKind.current = view.kind;
+  const openRef = useRef<(f: File, extra: number) => void>(() => undefined);
+  useEffect(() => {
+    const hasFiles = (e: DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes('Files');
+    const over = (e: DragEvent) => {
+      if (hasFiles(e)) e.preventDefault();
+    };
+    const drop = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      const files = e.dataTransfer?.files;
+      if (viewKind.current === 'idle' && files && files.length > 0 && !(e.target as HTMLElement | null)?.closest?.('.dropzone')) openRef.current(files[0]!, files.length - 1);
+    };
+    window.addEventListener('dragover', over);
+    window.addEventListener('drop', drop);
+    return () => {
+      window.removeEventListener('dragover', over);
+      window.removeEventListener('drop', drop);
+    };
+  }, []);
 
   const reset = (notice?: string) => {
     run.current++;
@@ -103,7 +127,7 @@ export function App({ client, urls: urlsProp }: Props) {
     }
     const report = p.report;
     let originalUrl: string | null = null;
-    if (report.format !== 'pdf' && imageSizeRefusal(report.dimensions) === null && !report.structurallyUnsound) {
+    if (report.format !== 'pdf' && report.dimensions !== null && imageSizeRefusal(report.dimensions) === null && !report.structurallyUnsound) {
       // The slice carries a MIME type we choose, never the one the file declared.
       originalUrl = urls.create(f.slice(0, f.size, MIME[report.format]));
     }
@@ -112,17 +136,33 @@ export function App({ client, urls: urlsProp }: Props) {
     setView({ kind: 'result', name: f.name, report, originalUrl, pdfPreview: { state: 'none' }, selected: groups.filter((g) => g.defaultOn).map((g) => g.id), copy: { kind: 'idle' }, extraFiles: extra });
   };
 
+  openRef.current = (f, extra) => void open(f, extra);
+
   const cancel = () => {
     run.current++;
     client.cancel();
     reset('Cancelled. Nothing was kept.');
   };
 
+  /** A cancelled or failed job ends the worker. Re-read the file (still selected in this tab) instead of leaving a dead end. */
+  const ensureSession = async (token: number): Promise<boolean> => {
+    if (client.sessionOpen) return true;
+    const f = file.current;
+    if (!f) return false;
+    const out = await client.analyse(f).promise;
+    return run.current === token && out.ok && out.payload.kind === 'analysis' && out.payload.supported;
+  };
+
   const makeCopy = async () => {
     if (view.kind !== 'result') return;
     const token = ++run.current;
     const base = view;
+    if (base.copy.kind === 'done') urls.revoke(base.copy.result.url);
     setView({ ...base, copy: { kind: 'building', stage: 'building-copy' } });
+    if (!(await ensureSession(token))) {
+      if (run.current !== token) return;
+      return setView({ ...base, copy: { kind: 'error', error: { code: 'worker-failure', message: 'The file could not be read again. Use "Clear and start over" and choose it again.' } } });
+    }
     const job = client.transform(base.selected, { onProgress: (stage) => run.current === token && setView((v) => (v.kind === 'result' ? { ...v, copy: { kind: 'building', stage } } : v)) });
     const out = await job.promise;
     if (run.current !== token) return;
@@ -140,13 +180,24 @@ export function App({ client, urls: urlsProp }: Props) {
       ...base,
       copy: { kind: 'done', result: { url, size: blob.size, downloadName: downloadName(base.name, base.report.format), manifest: p.manifest, verification: p.verification } },
     });
+    queueMicrotask(() => document.getElementById('verify-h')?.focus());
   };
 
   const cancelCopy = () => {
     run.current++;
     client.cancel();
     if (view.kind === 'result') setView({ ...view, copy: { kind: 'idle' } });
-    setAnnounce('The copy was cancelled. The inspection result is still shown; choose the file again to make another copy.');
+    setAnnounce('The copy was cancelled. The inspection result is still shown; you can make a copy again.');
+    queueMicrotask(() => document.getElementById('make-copy')?.focus());
+  };
+
+  const toggleGroup = (id: string) => {
+    if (view.kind !== 'result') return;
+    if (view.copy.kind === 'done') {
+      urls.revoke(view.copy.result.url);
+      setAnnounce('The selection changed, so the previous copy was discarded. Make a new copy to check it.');
+    }
+    setView({ ...view, selected: view.selected.includes(id) ? view.selected.filter((x) => x !== id) : [...view.selected, id], copy: { kind: 'idle' } });
   };
 
   const download = () => {
@@ -165,7 +216,12 @@ export function App({ client, urls: urlsProp }: Props) {
     if (view.kind !== 'result') return;
     const token = ++run.current;
     const base = view;
+    if (base.pdfPreview.state === 'ready') urls.revoke(base.pdfPreview.url);
     setView({ ...base, pdfPreview: { state: 'loading' } });
+    if (!(await ensureSession(token))) {
+      if (run.current !== token) return;
+      return setView({ ...base, pdfPreview: { state: 'error', message: 'The file could not be read again. Use "Clear and start over" and choose it again.' } });
+    }
     const job = client.previewPdf();
     const out = await job.promise;
     if (run.current !== token) return;
@@ -209,7 +265,7 @@ export function App({ client, urls: urlsProp }: Props) {
               </p>
               <p class="local-note">
                 <strong>Your file stays here.</strong> It is read inside this browser tab. There is no upload, no account and no analytics, and the page is built
-                to refuse network connections.
+                to refuse network connections when it is served with its security headers.
               </p>
             </section>
             {view.notice && <p class="notice" role="status">{view.notice}</p>}
@@ -220,14 +276,14 @@ export function App({ client, urls: urlsProp }: Props) {
 
         {view.kind === 'working' && (
           <>
-            <h1 class="page-title">Inspecting</h1>
+            <h1 class="page-title" tabIndex={-1}>Inspecting</h1>
             <Progress stage={view.stage} fraction={view.fraction} onCancel={cancel} />
           </>
         )}
 
         {view.kind === 'error' && (
           <section class="error" role="alert" aria-labelledby="err-h">
-            <h1 id="err-h" class="page-title">
+            <h1 id="err-h" class="page-title" tabIndex={-1}>
               {ERROR_TITLE[view.error.code]}
             </h1>
             <p>{view.error.message}</p>
@@ -240,7 +296,7 @@ export function App({ client, urls: urlsProp }: Props) {
 
         {view.kind === 'unsupported' && (
           <>
-            <h1 class="page-title" tabIndex={-1} ref={resultHeading}>
+            <h1 class="page-title" tabIndex={-1}>
               This format is not supported
             </h1>
             <p class="section-lead">
@@ -256,7 +312,7 @@ export function App({ client, urls: urlsProp }: Props) {
           </>
         )}
 
-        {view.kind === 'result' && <ResultView view={view} busy={busy} setView={setView} actions={{ makeCopy, cancelCopy, download, showPdfPreview, reset }} />}
+        {view.kind === 'result' && <ResultView view={view} busy={busy} setView={setView} actions={{ makeCopy, cancelCopy, download, showPdfPreview, reset, toggleGroup }} />}
       </main>
 
       <footer class="footer">
@@ -289,7 +345,7 @@ interface ResultProps {
   view: Extract<View, { kind: 'result' }>;
   busy: boolean;
   setView: (v: View) => void;
-  actions: { makeCopy: () => void; cancelCopy: () => void; download: () => void; showPdfPreview: () => void; reset: () => void };
+  actions: { makeCopy: () => void; cancelCopy: () => void; download: () => void; showPdfPreview: () => void; reset: () => void; toggleGroup: (id: string) => void };
 }
 
 function ResultView({ view, busy, setView, actions }: ResultProps) {
@@ -299,14 +355,10 @@ function ResultView({ view, busy, setView, actions }: ResultProps) {
   const notable = report.findings.filter((f) => f.category !== 'structural');
   const cats = new Set(notable.map((f) => f.category));
   const notRead = report.coverage.filter((c) => c.state !== 'inspected').length;
-  const headingRef = useRef<HTMLHeadingElement>(null);
-  useEffect(() => headingRef.current?.focus(), []);
-
-  const toggle = (id: string) => setView({ ...view, selected: view.selected.includes(id) ? view.selected.filter((s) => s !== id) : [...view.selected, id], copy: { kind: 'idle' } });
 
   return (
     <>
-      <h1 class="page-title" tabIndex={-1} ref={headingRef}>
+      <h1 class="page-title" tabIndex={-1}>
         Inspection result
       </h1>
       {view.extraFiles > 0 && <p class="notice">Only the first file was opened. Choose the others one at a time.</p>}
@@ -323,7 +375,7 @@ function ResultView({ view, busy, setView, actions }: ResultProps) {
         view.originalUrl ? (
           <figure class="original-preview">
             <img src={view.originalUrl} alt="The file as the browser displays it" decoding="async" />
-            <figcaption class="fine-print">Shown as an ordinary image from a local copy in this tab. It is not uploaded.</figcaption>
+            <figcaption class="fine-print">Shown as an ordinary image, read from the file you selected in this tab. It is not uploaded.</figcaption>
           </figure>
         ) : (
           <p class="fine-print">No preview is shown{report.structurallyUnsound ? ' because the file structure is damaged' : ' because the declared size is above what this tool decodes'}.</p>
@@ -341,6 +393,14 @@ function ResultView({ view, busy, setView, actions }: ResultProps) {
         <p class="legend">
           Each finding says where it was read from and how sure the tool is. <em>Suspicious</em> means unusual or inconsistent, not harmful. Open “Evidence and limits” on any item for the location and caveats.
         </p>
+        <dl class="status-legend">
+          {(['verified', 'inferred', 'suspicious', 'unsupported', 'unavailable'] as const).map((s) => (
+            <div key={s}>
+              <dt>{STATUS_LABEL[s]}</dt>
+              <dd>{STATUS_HELP[s]}</dd>
+            </div>
+          ))}
+        </dl>
         <FindingsByCategory findings={report.findings} activeId={activeId} onActive={setActiveId} />
       </section>
 
@@ -349,7 +409,7 @@ function ResultView({ view, busy, setView, actions }: ResultProps) {
       {view.copy.kind === 'building' ? (
         <Progress stage={view.copy.stage} fraction={null} onCancel={actions.cancelCopy} label="Experimental copy" />
       ) : (
-        <CopyPanel report={report} groups={groups} selected={view.selected} onToggle={toggle} onCreate={actions.makeCopy} busy={busy} />
+        <CopyPanel report={report} groups={groups} selected={view.selected} onToggle={actions.toggleGroup} onCreate={actions.makeCopy} busy={busy} />
       )}
       {view.copy.kind === 'error' && (
         <p class="error" role="alert">
@@ -382,7 +442,7 @@ function PdfPreviewBox({ state, onShow, busy }: { state: PdfPreview; onShow: () 
         </figure>
       ) : (
         <>
-          <p>The preview is drawn inside a separate worker and shown as an image. Nothing in the document runs.</p>
+          <p>The preview is drawn inside a separate worker and shown as an image. Scripts, actions and forms in the document are not run.</p>
           {state.state === 'error' && <p class="fine-print">The preview could not be drawn: {state.message}</p>}
           <button type="button" class="button" onClick={onShow} disabled={busy}>
             {state.state === 'loading' ? 'Drawing…' : 'Show page 1 as a picture'}

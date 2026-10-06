@@ -43,7 +43,7 @@ is anonymous or safe.
 | Worker coordination | `worker/client`, `worker/protocol` | One job at a time, progress, cancel, timeout, supersede, stale-result protection, termination on reset |
 | Parsers | `formats/*` | Bounds-checked, bounded, return normalised findings plus explicit coverage; no UI |
 | Finding model | `core/types`, `core/findings`, `core/explain` | Category, normalised value, source, evidence location, status, confidence, privacy explanation, removable, transformation support, limitations. Wording lives in the catalogue, not in parsers |
-| Safe preview | `ui/App` (`img` of a Blob with a forced MIME type), `worker/pdfPreview` | Raster images through `<img>`; PDF page 1 as a PNG made in the worker |
+| Inert preview | `ui/App` (`img` of a Blob with a forced MIME type), `worker/pdfPreview` | Raster images through `<img>`; PDF page 1 as a PNG made in the worker |
 | Transformations | `transform/{jpeg,png}` + `transform/groups`, `transform/policy` | Removal by byte range from one shared policy table; mutation manifest |
 | Verification | `transform/verify`, `worker/decode` | Re-parse, compare findings, byte-identical picture data, dimensions, orientation, browser decode and pixel comparison |
 | Presentation | `ui/*` | Calm, factual, accessible; renders values only as text |
@@ -64,7 +64,7 @@ is anonymous or safe.
 ## Constraints that hold
 
 - Essential analysis needs no backend, account, provider or network connection after the static files load.
-- File bytes are retained only for the active session, inside the worker, and released by terminating it.
+- File bytes are retained only for the active session. The worker holds the buffer; the page holds the `File` handle, a Blob slice for the original preview and, after a copy, the copy's Blob. All are released by reset, which terminates the worker and revokes every object URL.
 - Sanitisation is enabled per format only after round-trip integrity, unsupported-content behaviour and
   failure recovery are defined and tested (JPEG and PNG yes; PDF no).
 - The build is plain static files.

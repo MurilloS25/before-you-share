@@ -337,7 +337,7 @@ test.describe('hostile content stays inert', () => {
       await expect(page.locator('main script')).toHaveCount(0);
       await expect(page.locator('main img[src="x"]')).toHaveCount(0);
       await expect(page.locator('main svg[onload]')).toHaveCount(0);
-      expect(await page.locator('main').evaluate((m) => /[‪-‮⁦-⁩]/.test(m.textContent ?? ''))).toBe(false);
+      expect(await page.locator('main').evaluate((m) => /[\u202a-\u202e\u2066-\u2069]/.test(m.textContent ?? ''))).toBe(false);
       await page.getByRole('button', { name: 'Clear and start over' }).first().click();
     }
     expectClean(w);
@@ -345,7 +345,7 @@ test.describe('hostile content stays inert', () => {
 
   test('a hostile file name is shown as text and sanitised for the download name', async ({ page }) => {
     const w = await openApp(page);
-    const name = '<img src=x onerror=alert(1)>‮evil/..\\.jpg';
+    const name = '<img src=x onerror=alert(1)>\u202eevil/..\\.jpg';
     await chooseFile(page, { name, mimeType: 'image/jpeg', buffer: readFileSync(fx('jpeg-gps.jpg')) });
     await waitForResult(page);
     await expect(page.locator('main img[src="x"]')).toHaveCount(0);
@@ -356,7 +356,7 @@ test.describe('hostile content stays inert', () => {
     await page.getByRole('button', { name: 'Download experimental copy' }).click();
     const dl = await d;
     expect(dl.suggestedFilename()).toMatch(/\.experimental-copy\.jpg$/);
-    expect(dl.suggestedFilename()).not.toMatch(/[\\/<>‮]/);
+    expect(dl.suggestedFilename()).not.toMatch(/[\\/<>\u202e]/);
     expectClean(w);
   });
 });

@@ -2,7 +2,7 @@ import { CATEGORY_ORDER, type Category, type CoverageItem, type Finding } from '
 import { CATEGORY_HINT, CATEGORY_LABEL, STATUS_HELP, STATUS_LABEL, describeLocation, plural } from '../lib/format';
 
 const STATUS_MARK: Record<Finding['status'], string> = {
-  verified: '✓',
+  verified: '•',
   inferred: '~',
   suspicious: '!',
   unsupported: '–',
@@ -106,15 +106,17 @@ export function FindingsByCategory({ findings, activeId, onActive }: Props) {
         return (
           <section class="category" id={`cat-${cat}`} key={cat} aria-labelledby={`cat-h-${cat}`} data-category={cat}>
             {cat === 'structural' ? (
-              <details open={items.some((f) => f.status !== 'verified' || f.code === 'file.type-mismatch') || undefined}>
-                <summary>
-                  <h2 id={`cat-h-${cat}`} class="category-title inline-heading">
-                    {CATEGORY_LABEL[cat]} <span class="count">{items.length}</span>
-                  </h2>
-                  <span class="category-hint"> {CATEGORY_HINT[cat]}</span>
-                </summary>
-                {list}
-              </details>
+              <>
+                <h2 id={`cat-h-${cat}`} class="category-title">
+                  {CATEGORY_LABEL[cat]} <span class="count">{items.length}</span>
+                </h2>
+                <details open={items.some((f) => f.status !== 'verified' || f.code === 'file.type-mismatch') || undefined}>
+                  <summary>
+                    Show {CATEGORY_LABEL[cat].toLowerCase()} items. {CATEGORY_HINT[cat]}
+                  </summary>
+                  {list}
+                </details>
+              </>
             ) : (
               <>
                 <h2 id={`cat-h-${cat}`} class="category-title">

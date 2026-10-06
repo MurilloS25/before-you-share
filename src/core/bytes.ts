@@ -118,7 +118,7 @@ export function indexOfBytes(hay: Uint8Array, needle: Uint8Array, from = 0, to =
 export function displayText(value: string, max = 400): string {
   const cleaned = value
     .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/g, '�')
-    .replace(/[‪-‮⁦-⁩‎‏؜]/g, '�');
+    .replace(/[\u200b-\u200f\u2028-\u202e\u2066-\u2069\u061c\ufeff]/g, '�');
   return cleaned.length > max
     ? `${cleaned.slice(0, max)}… (${cleaned.length - max} more characters not shown)`
     : cleaned;

@@ -31,7 +31,9 @@ export function FileMap({ findings, fileSize, activeId }: Props) {
       <div class="filemap-lanes">
         {lanes.map((cat: Category) => (
           <div class="lane" key={cat}>
-            <span class="lane-label">{CATEGORY_LABEL[cat]}</span>
+            <span class="lane-label">
+              {CATEGORY_LABEL[cat]} <span class="count">{located.filter((f) => f.category === cat).length}</span>
+            </span>
             <span class="lane-track" aria-hidden="true">
               {located
                 .filter((f) => f.category === cat)
@@ -45,6 +47,9 @@ export function FileMap({ findings, fileSize, activeId }: Props) {
           </div>
         ))}
       </div>
+      <p class="filemap-note">
+        Solid marks were read directly from the file. Hatched marks are inferred, not supported or unavailable. Amber marks are unusual structure, which is not the same as harmful.
+      </p>
       {unlocated > 0 && <p class="filemap-note">{plural(unlocated, 'finding')} not tied to a byte range {unlocated === 1 ? 'is' : 'are'} listed below but not drawn here.</p>}
     </figure>
   );

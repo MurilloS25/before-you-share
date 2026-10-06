@@ -22,7 +22,7 @@
 
 | Claim | How it is enforced | How to see it |
 | --- | --- | --- |
-| No request after the app loads except its own static files | `Content-Security-Policy: default-src 'none'; connect-src 'none'; script-src 'self'; worker-src 'self'; img-src 'self' blob:; font-src 'self'; style-src 'self'; frame-ancestors 'none'` sent as a header on every response including the worker script | `npm run test:e2e` (`e2e/privacy.spec.ts`), or the browser's Network panel |
+| No request after the app loads except its own static files (cross-origin blocked by the CSP; same-origin limited to built files by tests) | `Content-Security-Policy: default-src 'none'; connect-src 'none'; script-src 'self'; worker-src 'self'; img-src 'self' blob:; font-src 'self'; style-src 'self'; frame-ancestors 'none'` sent as a header on every response including the worker script | `npm run test:e2e` (`e2e/privacy.spec.ts`), or the browser's Network panel |
 | A page-level fetch, beacon, WebSocket, remote image, iframe or eval is blocked | Same CSP; reported violations asserted | privacy e2e test |
 | Flows work with every non-own request aborted | Playwright routes abort anything except built assets | privacy e2e test |
 | No file-derived data in any request | All post-load requests are `GET` of built assets with no body or query; asserted | privacy e2e test |

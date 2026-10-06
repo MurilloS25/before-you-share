@@ -52,6 +52,7 @@
   --ink: #13232c;
   --ink-2: #3b525e;
   --rule: #93a8b2;
+  --edge: #667d8a;
   --rule-soft: #c3d0d6;
   --film: #1b5a78;
   --film-deep: #0f4560;
@@ -303,10 +304,11 @@ main {
   border-color: var(--film-deep);
 }
 .button-quiet {
-  border-color: var(--rule);
-  min-height: 2.25rem;
-  padding: 0.3rem 0.8rem;
+  border-color: var(--edge);
+  min-height: 2.75rem;
+  padding: 0.4rem 0.9rem;
   font-size: 1rem;
+  min-height: 2.75rem;
 }
 .button:disabled {
   border-style: dashed;
@@ -356,7 +358,7 @@ main {
   min-height: 19rem;
   padding: 2.2rem clamp(1.2rem, 4vw, 2.4rem);
   background: var(--sheet);
-  border: 1px solid var(--rule);
+  border: 1px solid var(--edge);
   cursor: pointer;
 }
 .plate[data-dragging] .dropzone {
@@ -574,7 +576,7 @@ main {
   position: relative;
   height: 1rem;
   background: var(--sheet);
-  border: 1px solid var(--rule);
+  border: 1px solid var(--edge);
 }
 .tick {
   position: absolute;
@@ -606,6 +608,10 @@ main {
 .category-nav {
   margin-bottom: 1.4rem;
   font-family: var(--label);
+}
+.category-nav a {
+  display: inline-block;
+  padding: 0.6rem 0;
 }
 .category {
   margin-top: 2.2rem;
@@ -684,7 +690,7 @@ main {
   font-size: 0.85em;
 }
 .status[data-status='verified'] {
-  color: var(--ok);
+  color: var(--film-deep);
 }
 .status[data-status='suspicious'] {
   color: var(--note);
@@ -706,6 +712,8 @@ details > summary {
   font-family: var(--label);
   color: var(--film-deep);
   margin-top: 0.4rem;
+  padding: 0.5rem 0;
+  min-height: 2.75rem;
 }
 .evidence {
   display: grid;
@@ -880,7 +888,10 @@ td {
   vertical-align: top;
   padding: 0.4rem 0.8rem 0.4rem 0;
   border-bottom: 1px solid var(--rule-soft);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+}
+.manifest table {
+  min-width: 38rem;
 }
 th {
   font-family: var(--label);
@@ -957,10 +968,42 @@ th {
 }
 
 @media (forced-colors: active) {
-  .tick,
+  .tick {
+    background: Highlight;
+    outline: 1px solid CanvasText;
+  }
   .finding,
-  .checks li {
-    forced-color-adjust: none;
+  .checks li,
+  .coverage-list li,
+  .verdict,
+  .notice,
+  .error {
+    border-left-color: CanvasText;
+  }
+  .status-mark {
     border-color: CanvasText;
   }
+}
+
+.working-pct {
+  font-family: var(--label);
+  font-size: 1.1rem;
+}
+.status-legend {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 0.5rem 1.5rem;
+  margin-top: 1rem;
+  max-width: 60rem;
+  font-size: 0.97rem;
+}
+.status-legend dt {
+  font-family: var(--label);
+  font-weight: 600;
+}
+.status-legend dd {
+  color: var(--ink-2);
+}
+.user-text {
+  unicode-bidi: isolate;
 }

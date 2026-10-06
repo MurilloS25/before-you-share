@@ -13,8 +13,7 @@ Plain statements of what this tool does not do or cannot promise.
   Verification compares what this tool can detect.
 - **Browser decoder dependence.** Visual comparison uses the current browser's decoder and a pixel
   comparison up to 16 Mpx. Colour management differences between browsers are not tested.
-- **Sizes.** 48 MiB images and 64 MiB PDFs. Very small devices may run out of memory earlier; the tool
-  then reports a failure and keeps nothing.
+- **Sizes.** 48 MiB images and 64 MiB PDFs. Very small devices may run out of memory earlier. If the browser raises an error the tool reports a failure and keeps nothing; a crashed tab cannot be reported. Out-of-memory is not tested.
 - **Orientation in PNG.** How viewers treat an Orientation tag inside eXIf is not settled in the sources
   checked, so it is preserved rather than assumed.
 - **DOCX and other formats** are not supported. WebP, GIF, HEIC, TIFF, ZIP and Office files are recognised
@@ -22,8 +21,8 @@ Plain statements of what this tool does not do or cannot promise.
 - **Not a security product.** It does not detect malware and does not say a file is safe to open.
 - **Hash.** SHA-256 identifies bytes. It needs a secure browsing context (https or localhost).
 - **No dark theme.** Only a designed light theme ships.
+- **JFIF thumbnails** are removable only through "Other application segments" (the JFIF header is rewritten without them).
 - **Large result lists** (hundreds of findings) can make the page unresponsive for a moment while they are drawn.
-- **Fuzzing.** Property and mutation tests were run with fixed and varied seeds; they are not
-  coverage-guided fuzzing and do not prove the absence of parser bugs.
+- **Fuzzing.** The suite runs property and mutation tests with a fixed seed; other seeds and larger run counts were tried by hand during development and not recorded. They are not coverage-guided fuzzing and do not prove the absence of parser bugs. XMP, IPTC and ICC readers are exercised only through the JPEG/PNG analysers.
 - **Tested browsers.** Automated tests run in Microsoft Edge (Chromium). Firefox and Safari are
-  supported by design (`docs/BROWSERS.md`) but were not run in this work.
+  targeted by design (`docs/BROWSERS.md`) but untested: they were not run in this work.

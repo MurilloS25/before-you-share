@@ -1,6 +1,6 @@
 # 0001 Local file privacy MVP
 
-Status: in progress. Written after the parser core and the fixture generator existed
+Status: MVP implemented; awaiting manual acceptance. Written after the parser core and the fixture generator existed
 (the first slices were built to de-risk the format decisions below); the plan is the
 record of scope, gates and risks that the rest of the work is held to.
 
@@ -49,16 +49,16 @@ only renders. See `docs/ARCHITECTURE.md`.
 
 1. **Core and parsers.** Gate: all fixtures analysed; evidence locations point at the real bytes;
    bounded property/mutation tests pass. *Done.*
-2. **Transformations.** Gate: deterministic output, manifest accounts for every byte, picture data
+2. **Transformations.** Gate: deterministic output, manifest accounts for every removed and rewritten byte, picture data
    byte-identical, selected findings no longer detected, tamper tests fail as expected. *Done.*
 3. **Worker and coordination.** Gate: cancel, timeout, supersede, stale-result tests. *Done (unit).*
-   Real-browser cancel and stale-worker E2E in phase 6.
-4. **UI.** Gate: component tests for every state; keyboard operable; no HTML injection from metadata.
+   Real-browser cancel and succession E2E tests are in phase 6 (done); a late-message-from-a-terminated-worker case is covered only by the unit test with a fake worker.
+4. **UI.** Gate: component tests for every state; keyboard operable; no HTML injection from metadata. *Done.*
 5. **Privacy and security gates.** CSP, zero-network tests (analysis, copy, preview), build audit
-   for URLs, dependency audit and licences, secret scan.
-6. **E2E on the production build** (Playwright with installed Edge) including axe and viewport/zoom checks.
-7. **Independent reviews** (parser correctness, security/privacy, UX/copy/accessibility, claims) and fixes.
-8. **Docs, PR, acceptance session.**
+   for URLs, dependency audit and licences. *Done.* (No secret scan tool was run; the repository contains no environment files and no credentials.)
+6. **E2E on the production build** (Playwright with installed Edge) including axe and viewport/zoom checks. *Done.*
+7. **Independent reviews** (parser correctness, security/privacy, UX/copy/accessibility, claims) and fixes. *Done; findings and fixes are listed in the pull request.*
+8. **Docs, PR, acceptance session.** *Done when the PR is opened.*
 
 ## Verification matrix
 
@@ -71,13 +71,14 @@ timing of the worker and of main-thread responsiveness, cancellation, object-URL
 A copy is offered only for JPEG and PNG, only when the structure is sound and the declared size is
 decodable. Before running, the UI lists what will be removed, kept and may change (from the same
 policy table the transformer uses). After running it re-parses the copy with the same analysers,
-checks that selected findings are gone, nothing new appeared, picture data is byte-identical,
-dimensions and orientation are unchanged, and (in the browser) both files decode to identical pixels.
+checks that selected findings are gone, nothing new appeared, picture data and display-related data are
+byte-identical, dimensions and orientation are unchanged, and (in the browser) both files decode to
+identical pixels.
 Wording never says "clean", "safe" or "all metadata removed".
 
 ## DOCX decision
 
-Deferred until phases 1-7 are green. See the final report for whether it was started.
+Not started. Phases 1 to 7 are complete, but DOCX was left out so the three main formats could get their depth and review; it remains a documented limitation.
 
 ## Risks
 

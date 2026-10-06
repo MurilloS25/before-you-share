@@ -39,7 +39,7 @@ export function DropZone({ onFile, disabled }: Props) {
         <span class="corner corner-bl" aria-hidden="true" />
         <span class="corner corner-br" aria-hidden="true" />
         <span id="intake-title" class="dropzone-title">
-          Drop a file on the plate
+          Drop a file here
         </span>
         <span class="dropzone-or">or</span>
         <span class="button button-primary" aria-hidden="true">

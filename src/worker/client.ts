@@ -30,7 +30,7 @@ export interface ClientOptions {
 
 /**
  * Coordinates the single analysis worker. Rules:
- *  - at most one job runs at a time (LIMITS.maxConcurrentJobs); a new analysis supersedes the old one;
+ *  - at most one job runs at a time (enforced here, not configurable); a new analysis supersedes the old one;
  *  - cancelling or timing out terminates the worker, which frees its memory and stops it for certain;
  *  - every result is checked against the worker generation and job id, so a late message from an
  *    earlier run can never be applied to the current one.
@@ -114,7 +114,12 @@ export class AnalysisClient {
   }
 
   private fail(generation: number, error: StructuredError): void {
-    if (generation !== this.generation || !this.active) return;
+    if (generation !== this.generation) return;
+    if (!this.active) {
+      // The worker died between jobs: drop it so the next job starts on a fresh one instead of waiting for a timeout.
+      this.killWorker();
+      return;
+    }
     const finish = this.active.finish;
     this.clearActive();
     this.killWorker();
@@ -124,7 +129,13 @@ export class AnalysisClient {
   private start(request: (jobId: number) => WorkerRequest, handlers: JobHandlers, transfer: Transferable[] = []): JobHandle {
     // A new job supersedes a running one (concurrency stays at one).
     if (this.active) this.cancelActive();
-    const worker = this.worker ?? this.spawn();
+    let worker: WorkerLike;
+    try {
+      worker = this.worker ?? this.spawn();
+    } catch {
+      this.killWorker();
+      return { promise: Promise.resolve<JobOutcome>({ ok: false, error: { code: 'worker-failure', message: 'The analysis worker could not be started in this browser.' } }), cancel: () => undefined };
+    }
     const jobId = this.nextJobId++;
     const req = request(jobId);
     let finishFn: (o: JobOutcome) => void = () => undefined;
@@ -136,7 +147,11 @@ export class AnalysisClient {
       this.fail(generation, { code: 'timeout', message: `The job took longer than ${Math.round((this.opts.timeoutMs ?? LIMITS.jobTimeoutMs) / 1000)} seconds and was stopped.` });
     }, this.opts.timeoutMs ?? LIMITS.jobTimeoutMs);
     this.active = { jobId, generation, finish: finishFn, timer, handlers, kind: req.type };
-    worker.postMessage(req, transfer);
+    try {
+      worker.postMessage(req, transfer);
+    } catch {
+      this.fail(generation, { code: 'worker-failure', message: 'The file could not be handed to the analysis worker.' });
+    }
     return { promise, cancel: () => this.cancelJob(jobId) };
   }
 

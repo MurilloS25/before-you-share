@@ -120,7 +120,7 @@ describe('JPEG inspection', () => {
     const r = await analyseFixture('jpeg-hostile-metadata.jpg');
     expect(valueOf(r, 'exif.artist')).toBe('<img src=x onerror=alert(1)><script>alert(2)</script>');
     for (const f of r.findings) {
-      expect(f.value ?? '').not.toMatch(/[‪-‮⁦-⁩\u0001\u0002]/);
+      expect(f.value ?? '').not.toMatch(/[\u202a-\u202e\u2066-\u2069\u0001\u0002]/);
     }
   });
 

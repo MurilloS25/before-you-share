@@ -49,17 +49,18 @@ export function VerificationView({ report, originalUrl, copy, onDownload }: Prop
   const count = (r: AnalysisReport) => notable(r.findings).length;
   return (
     <section class="verification" aria-labelledby="verify-h" tabIndex={-1} id="verification">
-      <h2 id="verify-h" class="section-title">
+      <h2 id="verify-h" class="section-title" tabIndex={-1}>
         Experimental copy, re-inspected
       </h2>
       {v.allPassed ? (
         <p class="verdict" data-ok="true">
-          The copy was inspected again and {plural(v.checks.filter((c) => c.status === 'pass').length, 'check')} passed. The selected fields were no longer
-          detected. Other hidden information may remain.
+          The copy was inspected again and {plural(v.checks.filter((c) => c.status === 'pass').length, 'check')} passed
+          {v.checks.some((c) => c.status === 'skipped') ? `, ${v.checks.filter((c) => c.status === 'skipped').length} skipped (marked below)` : ''}. The selected fields were no
+          longer detected. Other hidden information may remain.
         </p>
       ) : (
         <p class="verdict" role="alert" data-ok="false">
-          {plural(failed.length, 'check')} did not pass: {failed.map((c) => c.label.toLowerCase()).join('; ')}. Do not use this copy. Your original is untouched.
+          {plural(failed.length, 'check')} did not pass: {failed.map((c) => c.label.toLowerCase()).join('; ')}. Do not use this copy. Your original is untouched. Change the selection and try again, or clear and start over.
         </p>
       )}
 
@@ -181,10 +182,10 @@ export function VerificationView({ report, originalUrl, copy, onDownload }: Prop
           The copy will be saved as <strong class="user-text">{copy.downloadName}</strong>, a new file. Your original is not replaced or changed.
         </p>
         <p class="fine-print">Open and check this copy before sharing it. Keep your original. This tool is experimental and cannot promise the copy is free of hidden information.</p>
+        {!v.allPassed && <p class="fine-print">Download is disabled because a check did not pass.</p>}
         <button type="button" class="button button-primary" onClick={onDownload} disabled={!v.allPassed}>
           Download experimental copy
         </button>
-        {!v.allPassed && <p class="fine-print">Download is disabled because a check did not pass.</p>}
       </div>
     </section>
   );

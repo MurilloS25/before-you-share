@@ -23,9 +23,9 @@ export function Progress({ stage, fraction, onCancel, label }: Props) {
       <div class="scanline" aria-hidden="true" />
       <p role="status" class="working-text">
         {label ? `${label}: ` : ''}
-        {STAGE_TEXT[stage]}
-        {pct !== null ? `, ${pct}%` : '…'}
+        {STAGE_TEXT[stage]}…
       </p>
+      {pct !== null && <p class="working-pct">{pct}%</p>}
       {pct !== null ? <progress max={100} value={pct} aria-label={STAGE_TEXT[stage]} /> : <progress aria-label={STAGE_TEXT[stage]} />}
       <button type="button" class="button" onClick={onCancel}>
         Cancel

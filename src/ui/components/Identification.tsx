@@ -1,5 +1,6 @@
 import type { AnalysisReport, Fingerprint } from '../../core/types';
 import type { Detection } from '../../core/detect';
+import { displayText } from '../../core/bytes';
 import { FORMAT_LABEL, formatBytes } from '../lib/format';
 
 const CHECK: Record<Fingerprint['extensionCheck'], string> = {
@@ -46,7 +47,7 @@ export function Identification({ name, fingerprint, report, detection }: Props) 
         </div>
         <div>
           <dt>File name</dt>
-          <dd class="user-text">{name}</dd>
+          <dd class="user-text">{displayText(name, 200)}</dd>
         </div>
         <div>
           <dt>Extension</dt>
@@ -54,7 +55,7 @@ export function Identification({ name, fingerprint, report, detection }: Props) 
         </div>
         <div>
           <dt>Type reported by the browser</dt>
-          <dd class="user-text">{fingerprint.declaredType || 'None'}</dd>
+          <dd class="user-text">{displayText(fingerprint.declaredType, 100) || 'None'}</dd>
         </div>
         {fingerprint.sha256 && (
           <div class="fact-wide">

@@ -20,7 +20,7 @@ Coverage is also shown to the person in the app ("What this tool did not fully c
 | Not examined | Pixels, faces, text in the picture, steganography, data inside entropy-coded segments |
 
 Experimental copy: removes selected groups (EXIF, XMP, IPTC/Photoshop, comments; opt-in: other
-application segments, trailing data). Keeps JFIF, ICC, Adobe marker, all structural segments and image
+application segments including a JFIF embedded thumbnail, whose header is rewritten without it, and trailing data). Keeps JFIF, ICC, Adobe marker, all structural segments and image
 data byte for byte. Keeps orientation via an orientation-only EXIF segment.
 
 ## PNG
@@ -28,7 +28,7 @@ data byte for byte. Keeps orientation via an orientation-only EXIF segment.
 | Area | Coverage |
 | --- | --- |
 | Structure | Signature, every chunk length, type code and CRC, IHDR validation, chunk order and duplicate rules, IDAT continuity, chunk cap (20000) |
-| Text | tEXt, zTXt (bounded inflate), iTXt (UTF-8, compressed or not), keyword categories |
+| Text | tEXt, zTXt (bounded inflate), iTXt (UTF-8, compressed or not), keyword categories; text chunks whose keyword or layout is invalid are reported as such and are removable |
 | XMP | iTXt `XML:com.adobe.xmp`, same well-known properties as JPEG |
 | EXIF | eXIf with the same decoder as JPEG (GPS, device, dates) |
 | tIME, pHYs, iCCP | Verified |
@@ -56,4 +56,4 @@ are not embedded may not render because font data is not fetched.
 
 ## DOCX
 
-Not implemented. Not started: see plan 0001 for the decision.
+Not implemented and not started.

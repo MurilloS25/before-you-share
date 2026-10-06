@@ -22,4 +22,4 @@ and findings are annotations with evidence. It should feel like inspection equip
   rounded cards, tracked all-caps labels, numbered step markers, monospace "terminal" styling.
 - **Accessibility**: real file input with a visible focus ring around the plate, headings in order,
   details disclosures for evidence, role=status progress, role=alert for errors and failed checks, tables
-  with captions and scoped headers, 44 px minimum targets, 320 px reflow, rem-based layout for text zoom.
+  with captions and scoped headers, 44 px minimum height for buttons, disclosure summaries and navigation links, 320 px reflow, rem-based layout for text zoom.

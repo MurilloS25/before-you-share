@@ -72,12 +72,12 @@ See [docs/HARNESS.md](docs/HARNESS.md) for the exact commands and what each one 
 - **Local-only architecture.** A strict CSP (`connect-src 'none'`) is sent as a header, tests block and
   record every request, and a build audit scans the output for endpoints.
 - **Transformation manifests.** Copies are made by removing byte ranges and copying everything else
-  unchanged. A manifest lists every removed, rewritten, inserted and deliberately preserved range.
+  unchanged. A manifest lists every removed and rewritten range and the metadata-like structures deliberately preserved.
 - **Round-trip verification.** The copy is parsed again by the same analysers; selected findings must be
   gone, nothing new may appear, picture data must be byte-identical, and the browser decodes both files and
   compares pixels.
 - **Property and mutation testing.** fast-check generates random, structure-aware and mutated inputs
-  against every parser and the transformers. This is not coverage-guided fuzzing and is not claimed to be.
+  against the JPEG, PNG and PDF analysers, the EXIF reader and the transformers. This is not coverage-guided fuzzing and is not claimed to be.
 
 ## Documentation
 

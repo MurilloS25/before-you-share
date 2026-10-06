@@ -48,7 +48,7 @@ const EXIF_FULL = {
 /** Hostile-but-inert metadata for rendering tests: markup, bidi controls, control chars. */
 export const HOSTILE = {
   markup: '<img src=x onerror=alert(1)><script>alert(2)</script>',
-  bidi: 'fixture‮evil‬ name ⁦x⁩',
+  bidi: 'fixture\u202eevil\u202c name \u2066x\u2069',
   svg: '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(3)"></svg>',
 };
 

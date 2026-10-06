@@ -64,10 +64,12 @@ export function describeLocation(l: EvidenceLocation): string {
 export function downloadName(original: string, format: 'jpeg' | 'png'): string {
   const dot = original.lastIndexOf('.');
   const stem = (dot > 0 ? original.slice(0, dot) : original).split(/[\\/]/).pop() ?? '';
-  const cleaned = stem
-    .replace(/[\u0000-\u001f\u007f-\u009f‪-‮⁦-⁩‎‏؜]/g, '')
+  let cleaned = stem
+    .replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2066-\u2069\u061c\ufeff]/g, '')
     .replace(/[<>:"/\\|?*]+/g, '_')
     .replace(/^[.\s]+|[.\s]+$/g, '')
     .slice(0, 80);
+  // Windows reserved device names (CON, NUL, COM1 ...) cannot be used as a file stem.
+  if (/^(con|prn|aux|nul|com[0-9]|lpt[0-9])$/i.test(cleaned)) cleaned = `_${cleaned}`;
   return `${cleaned || 'file'}.experimental-copy.${format === 'jpeg' ? 'jpg' : 'png'}`;
 }

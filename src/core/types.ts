@@ -126,7 +126,7 @@ export interface RemovalGroup {
 }
 
 export interface ManifestEntry {
-  action: 'removed' | 'rewritten' | 'inserted' | 'preserved';
+  action: 'removed' | 'rewritten' | 'preserved';
   what: string;
   group?: string;
   offset: number | null;

@@ -78,3 +78,19 @@ describe('first-party source guard rails', () => {
     expect(t.match(/ArrayBuffer/g)?.length).toBe(2);
   });
 });
+
+describe('source hygiene', () => {
+  it('contains no invisible or bidirectional control characters (Trojan Source)', () => {
+    const all = [...walk('src'), ...walk('tests'), ...walk('e2e'), ...walk('scripts'), ...walk('fixtures/lib')];
+    const bad: string[] = [];
+    for (const f of all) {
+      const text = readFileSync(f, 'utf8');
+      for (let i = 0; i < text.length; i++) {
+        const c = text.charCodeAt(i);
+        const invisible = (c >= 0x200b && c <= 0x200f) || (c >= 0x2028 && c <= 0x202e) || (c >= 0x2066 && c <= 0x2069) || c === 0x061c || c === 0xfeff || (c < 0x20 && c !== 10 && c !== 13 && c !== 9);
+        if (invisible) bad.push(`${f}:${text.slice(0, i).split('\n').length} U+${c.toString(16)}`);
+      }
+    }
+    expect(bad).toEqual([]);
+  });
+});

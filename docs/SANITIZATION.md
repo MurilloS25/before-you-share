@@ -47,7 +47,8 @@ The copy is parsed again with the same analysers and compared with the original:
 6. Dimensions are unchanged.
 7. Orientation is unchanged.
 8. The in-memory original did not change (SHA-256 before and after).
-9. In the browser, both files decode and every decoded pixel is identical (up to 16 Mpx; larger images
+9. Colour profiles and display chunks (ICC, Adobe marker, iCCP and similar) are byte-identical.
+10. In the browser, both files decode and every decoded pixel is identical (up to 16 Mpx; larger images
    report that the exact comparison was skipped).
 
 Download is disabled if any check fails. A passing result means "these checks found no problem", not
@@ -56,7 +57,8 @@ Download is disabled if any check fails. A passing result means "these checks fo
 ## Mutation manifest
 
 Every removed range (offset and size), every rewritten segment, and every deliberately preserved
-metadata-like structure is listed, with the policy statements. The manifest is shown in the app.
+metadata-like structure is listed, with the policy statements. The byte accounting (input size minus removed
+plus rewritten equals output size) is asserted in `tests/transform.test.ts`. The manifest is shown in the app.
 
 ## Limitations
 

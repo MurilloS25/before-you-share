@@ -1,7 +1,8 @@
 # Research notes
 
-Each statement is labelled **Verified** (checked this session against a primary source or by running
-code), **Recalled** (from specifications or documentation known to the author and not re-fetched),
+Each statement is labelled **Verified** (checked during the work against a primary source or by running
+code; the registry, advisory and spec checks cannot be re-run from this repository, while the "ran it" items are partly
+covered by `tests/pdf.test.ts` and the PDF fixtures), **Recalled** (from specifications or documentation known to the author and not re-fetched),
 **Decision**, **Inference** or **Unknown**. Recalled items are the ones most worth a second look.
 
 ## PDF / pdf.js

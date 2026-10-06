@@ -27,7 +27,11 @@ function fakeClient() {
     jobs.push(d);
     return { promise, cancel: () => ((d.cancelled = true), resolve({ ok: false, error: { code: 'cancelled', message: 'cancelled' } })) };
   };
+  const state = { sessionOpen: true };
   const client = {
+    get sessionOpen() {
+      return state.sessionOpen;
+    },
     analyse: (f: File, h?: JobHandlers) => (calls.analyse.push(f), make(h)),
     transform: (g: string[], h?: JobHandlers) => (calls.transform.push(g), make(h)),
     previewPdf: (h?: JobHandlers) => (calls.preview++, make(h)),
@@ -39,9 +43,8 @@ function fakeClient() {
       calls.dispose++;
     },
     busy: false,
-    sessionOpen: false,
   };
-  return { client: client as unknown as AnalysisClient, jobs, calls };
+  return { client: client as unknown as AnalysisClient, jobs, calls, state };
 }
 
 const file = (name = 'a.jpg', bytes: Uint8Array = fixture('jpeg-clean.jpg'), type = 'image/jpeg') => new File([bytes as BlobPart], name, { type });
@@ -107,8 +110,10 @@ describe('working state', () => {
     fireEvent.change(screen.getByLabelText('Choose a file to inspect'), { target: { files: [file()] } });
     await screen.findByRole('heading', { level: 1, name: 'Inspecting' });
     fc.jobs[0]!.handlers.onProgress?.('reading', 0.42);
-    const status = await screen.findByText(/Reading the file in this browser, 42%/);
+    const status = await screen.findByText(/Reading the file in this browser/);
     expect(status.getAttribute('role')).toBe('status');
+    expect(status.textContent).not.toMatch(/%/); // the live region carries the stage only, not every percentage
+    expect(screen.getByText('42%')).toBeTruthy();
     const bar = document.querySelector('progress')!;
     expect(bar.getAttribute('value')).toBe('42');
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
@@ -333,6 +338,89 @@ describe('experimental copy', () => {
     await screen.findByRole('button', { name: 'Make experimental copy' });
     expect(fc.calls.cancel).toBeGreaterThan(0);
     expect(screen.getByText('GPS position')).toBeTruthy(); // the inspection is still there
+  });
+});
+
+describe('no dead ends after a cancelled or failed job', () => {
+  it('re-reads the still-selected file before making a copy when the worker session was lost', async () => {
+    const original = fixture('jpeg-gps.jpg');
+    const report = await analyseFixture('jpeg-gps.jpg');
+    const fc = await open(file('g.jpg', original), report);
+    fc.state.sessionOpen = false; // as after a cancelled copy: the worker was terminated
+    fireEvent.click(screen.getByRole('button', { name: 'Make experimental copy' }));
+    await waitFor(() => expect(fc.calls.analyse.length).toBe(2)); // analysed again automatically
+    fc.state.sessionOpen = true;
+    fc.jobs[1]!.resolve(analysisOf(report));
+    await waitFor(() => expect(fc.calls.transform.length).toBe(1));
+  });
+
+  it('shows a clear next step when the file cannot be read again', async () => {
+    const report = await analyseFixture('jpeg-gps.jpg');
+    const fc = await open(file('g.jpg', fixture('jpeg-gps.jpg')), report);
+    fc.state.sessionOpen = false;
+    fireEvent.click(screen.getByRole('button', { name: 'Make experimental copy' }));
+    await waitFor(() => expect(fc.jobs.length).toBe(2));
+    fc.jobs[1]!.resolve({ ok: false, error: { code: 'worker-failure', message: 'x' } });
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('Clear and start over');
+  });
+
+  it('moves focus to the new screen heading and to the verification result', async () => {
+    const original = fixture('jpeg-gps.jpg');
+    const report = await analyseFixture('jpeg-gps.jpg');
+    const fc = await open(file('g.jpg', original), report);
+    await waitFor(() => expect(document.activeElement?.tagName).toBe('H1'));
+    fireEvent.click(screen.getByRole('button', { name: 'Make experimental copy' }));
+    await waitFor(() => expect(fc.jobs.length).toBe(2));
+    const result = await createCopy(original, report, ['exif']);
+    const buf = result.output.buffer.slice(result.output.byteOffset, result.output.byteOffset + result.output.byteLength) as ArrayBuffer;
+    fc.jobs[1]!.resolve({ ok: true, payload: { kind: 'transform', output: buf, manifest: result.manifest, verification: result.verification } });
+    await screen.findByRole('heading', { name: 'Experimental copy, re-inspected' });
+    await waitFor(() => expect(document.activeElement?.id).toBe('verify-h'));
+  });
+
+  it('discards and revokes a finished copy when the selection changes, and says so', async () => {
+    const original = fixture('jpeg-kitchen-sink.jpg');
+    const report = await analyseFixture('jpeg-kitchen-sink.jpg');
+    const fc = await open(file('k.jpg', original), report);
+    fireEvent.click(screen.getByRole('button', { name: 'Make experimental copy' }));
+    await waitFor(() => expect(fc.jobs.length).toBe(2));
+    const groups = removalGroupsFor(report).filter((g) => g.defaultOn).map((g) => g.id);
+    const result = await createCopy(original, report, groups);
+    const buf = result.output.buffer.slice(result.output.byteOffset, result.output.byteOffset + result.output.byteLength) as ArrayBuffer;
+    fc.jobs[1]!.resolve({ ok: true, payload: { kind: 'transform', output: buf, manifest: result.manifest, verification: result.verification } });
+    await screen.findByRole('heading', { name: 'Experimental copy, re-inspected' });
+    const copyUrl = created[created.length - 1]!;
+    fireEvent.click(screen.getByLabelText(/^Data after the end of the image/));
+    expect(revoked).toContain(copyUrl);
+    expect(screen.queryByRole('heading', { name: 'Experimental copy, re-inspected' })).toBeNull();
+    expect(screen.getByTestId('announce').textContent).toMatch(/previous copy was discarded/);
+  });
+});
+
+describe('files dropped outside the plate', () => {
+  it('are never left to the browser: the drop is cancelled, and on the start screen it opens the file', async () => {
+    const fc = fakeClient();
+    render(<App client={fc.client} />);
+    const ev = new Event('drop', { bubbles: true, cancelable: true }) as Event & { dataTransfer: unknown };
+    ev.dataTransfer = { types: ['Files'], files: [file('x.jpg')] };
+    document.body.dispatchEvent(ev);
+    expect(ev.defaultPrevented).toBe(true);
+    await waitFor(() => expect(fc.calls.analyse.length).toBe(1));
+    const over = new Event('dragover', { bubbles: true, cancelable: true }) as Event & { dataTransfer: unknown };
+    over.dataTransfer = { types: ['Files'] };
+    window.dispatchEvent(over);
+    expect(over.defaultPrevented).toBe(true);
+  });
+
+  it('are ignored (but still cancelled) once a result is shown', async () => {
+    const report = await analyseFixture('jpeg-clean.jpg');
+    const fc = await open(file('c.jpg', fixture('jpeg-clean.jpg')), report);
+    const ev = new Event('drop', { bubbles: true, cancelable: true }) as Event & { dataTransfer: unknown };
+    ev.dataTransfer = { types: ['Files'], files: [file('other.jpg')] };
+    document.body.dispatchEvent(ev);
+    expect(ev.defaultPrevented).toBe(true);
+    expect(fc.calls.analyse.length).toBe(1);
   });
 });
 
