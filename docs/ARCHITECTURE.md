@@ -75,5 +75,7 @@ Recorded in `docs/decisions/`: stack (0001), parsers (0002), lossless rewrite in
 re-encoding (0003), killable worker (0004), PDF scope and pdf.js hardening (0005), enforced local-only
 (0006), no WebAssembly (0007), inert previews (0008), downloads by anchor (0009).
 
-Still open: OPFS or any persistence (not needed, therefore not added); PDF page-content analysis; DOCX
-(not started; see plan 0001); native font data for PDF preview without network.
+ADR 0010 covers DOCX (inspection only, own ZIP reader).
+
+Still open: OPFS or any persistence (not needed, therefore not added); PDF and DOCX page-content analysis; native font
+data for PDF preview without network.

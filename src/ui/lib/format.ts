@@ -41,7 +41,9 @@ export const STATUS_HELP: Record<EvidenceStatus, string> = {
   unavailable: 'Could not be checked.',
 };
 
-export const FORMAT_LABEL: Record<FormatId, string> = { jpeg: 'JPEG image', png: 'PNG image', pdf: 'PDF document' };
+export const FORMAT_LABEL: Record<FormatId, string> = { jpeg: 'JPEG image', png: 'PNG image', pdf: 'PDF document', docx: 'Word document (DOCX)' };
+
+export const isImageFormat = (f: FormatId): f is 'jpeg' | 'png' => f === 'jpeg' || f === 'png';
 
 export function formatBytes(n: number): string {
   if (n < 1024) return `${n} bytes`;

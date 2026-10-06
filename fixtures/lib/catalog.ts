@@ -1,4 +1,4 @@
-import { deflateSync } from 'node:zlib';
+import { crc32, deflateRawSync, deflateSync } from 'node:zlib';
 import {
   baseJpeg,
   buildExif,
@@ -20,6 +20,7 @@ import {
 import { buildPng, chunk, iccpChunk, ihdr, iend, itxtChunk, PNG_SIG, idatSplit, physChunk, textChunk, timeChunk, ztxtChunk, idatFor } from './png';
 import { basicPdf, PdfWriter, SYNTH_INFO } from './pdf';
 import { TiffBuilder } from './tiff';
+import { buildDocx, zip } from './docx';
 
 export interface FixtureSpec {
   file: string;
@@ -281,6 +282,99 @@ export function buildFixtures(): FixtureSpec[] {
     w.finish(4, '/Root 1 0 R');
     add('pdf-minimal.pdf', 'Smallest valid page tree with no metadata.', w.bytes());
   }
+
+
+  // ------------------------------------------------------------------ DOCX
+  const BASIC_DOCX = {
+    creator: 'Example Person',
+    lastModifiedBy: 'Example Reviewer',
+    created: '2000-01-01T00:00:00Z',
+    modified: '2000-01-02T00:00:00Z',
+    title: 'Fixture Document',
+    subject: 'Synthetic subject',
+    keywords: 'fixture, example',
+    description: 'Synthetic description',
+    revision: 3,
+    app: { application: 'Fixture Word 1.0', version: '16.0000', company: 'Example Organisation', manager: 'Example Manager', template: 'FixtureTemplate.dotm', totalTime: 42 },
+  };
+  add('docx-basic.docx', 'Core and app properties: author, last modified by, company, template, dates, revision, editing time.', zip(buildDocx(BASIC_DOCX)));
+  add(
+    'docx-comments-tracked.docx',
+    'Comments by two reviewers, tracked insertions and deletions, hidden text and several editing-session IDs.',
+    zip(
+      buildDocx({
+        ...BASIC_DOCX,
+        comments: [
+          { author: 'Example Reviewer', date: '2000-01-03T00:00:00Z', text: 'Synthetic comment one' },
+          { author: 'Second Reviewer', date: '2000-01-04T00:00:00Z', text: 'Synthetic comment two' },
+        ],
+        tracked: [
+          { kind: 'ins', author: 'Example Reviewer', date: '2000-01-05T00:00:00Z', text: 'inserted words' },
+          { kind: 'del', author: 'Second Reviewer', date: '2000-01-06T00:00:00Z', text: 'deleted words' },
+        ],
+        hiddenRuns: 2,
+        rsids: ['00A1B2C3', '00D4E5F6', '00112233'],
+      }),
+    ),
+  );
+  add(
+    'docx-embedded.docx',
+    'Embedded picture, OLE-style object, thumbnail, custom XML, custom properties and external references (a link and a template path).',
+    zip(
+      buildDocx({
+        ...BASIC_DOCX,
+        custom: [['ProjectCode', 'FIXTURE-001'], ['Classification', 'Synthetic']],
+        media: [{ name: 'image1.png', data: buildPng() }],
+        embeddings: [{ name: 'oleObject1.bin', data: enc('FIXTURE-EMBEDDED-OBJECT') }],
+        thumbnail: baseJpeg(8, 6, 50),
+        customXml: true,
+        relationships: [
+          { type: 'hyperlink', target: 'https://example.invalid/page', external: true },
+          { type: 'attachedTemplate', target: 'file:///C:/Users/ExamplePerson/Templates/Fixture.dotm', external: true },
+        ],
+      }),
+    ),
+  );
+  add('docx-macro.docx', 'A macro project entry and a macro-enabled content type (inert placeholder bytes).', zip(buildDocx({ ...BASIC_DOCX, macro: true, signature: true })));
+  {
+    // 200 MiB of zeros compresses to about 200 KB: a real compression-bomb ratio. Only 512 KiB of any part is ever read.
+    const zeros = new Uint8Array(200 * 1024 * 1024);
+    const compressed = Uint8Array.from(deflateRawSync(zeros, { level: 9 }));
+    add(
+      'docx-zipbomb.docx',
+      'A part that expands from about 200 KB to 200 MiB (reading must stay capped).',
+      zip(buildDocx({ ...BASIC_DOCX, extra: [{ name: 'word/media/bomb.bin', raw: { compressed, uncompressedSize: zeros.length, crc: crc32(zeros) >>> 0 } }] })),
+    );
+  }
+  add(
+    'docx-lying-sizes.docx',
+    'A tiny part whose central directory declares 4 GiB: declared sizes are not trusted.',
+    zip(buildDocx({ ...BASIC_DOCX, extra: [{ name: 'word/media/liar.bin', data: enc('tiny'), declaredUncompressed: 0xfffffff0 }, { name: 'word/media/liar2.bin', data: enc('tiny'), declaredUncompressed: 0xfffffff0 }] })),
+  );
+  add(
+    'docx-path-traversal.docx',
+    'Entry names that climb out of the package or use absolute and backslash paths (never extracted).',
+    zip(buildDocx({ ...BASIC_DOCX, extra: [{ name: '../evil.txt', data: enc('x') }, { name: '/abs/evil.txt', data: enc('x') }, { name: 'dir\\evil.txt', data: enc('x') }] })),
+  );
+  add('docx-duplicate-entries.docx', 'Two entries with the same name.', zip(buildDocx({ ...BASIC_DOCX, extra: [{ name: 'docProps/core.xml', data: enc('<dc:creator>Second Person</dc:creator>') }] })));
+  add(
+    'docx-encrypted-entry.docx',
+    'One entry carries the ZIP encryption flag (contents are random bytes).',
+    zip(buildDocx({ ...BASIC_DOCX, extra: [{ name: 'word/secret.xml', data: enc('not really encrypted'), flags: 1, method: 0 }] })),
+  );
+  add(
+    'docx-many-entries.docx',
+    '2500 entries: the entry cap must hold.',
+    zip(buildDocx({ ...BASIC_DOCX, extra: Array.from({ length: 2500 }, (_, i) => ({ name: `word/part${i}.xml`, data: enc('<a/>'), method: 0 as const })) })),
+  );
+  add(
+    'docx-hostile-metadata.docx',
+    'Properties containing markup, bidi controls and control characters (must render as text).',
+    zip(buildDocx({ creator: HOSTILE.markup, lastModifiedBy: HOSTILE.bidi, title: HOSTILE.svg, app: { company: 'x\u0001y' } })),
+  );
+  add('docx-fake-extension.png', 'A DOCX stored under a .png name.', zip(buildDocx(BASIC_DOCX)));
+  add('docx-truncated.docx', 'A DOCX cut before its central directory.', zip(buildDocx(BASIC_DOCX)).subarray(0, 600));
+  add('zip-not-docx.zip', 'A ZIP with one text file (recognised container, not a Word package).', zip([{ name: 'readme.txt', data: enc('plain text inside a zip') }]));
 
   // ------------------------------------------------------------------ other
   add('unsupported.gif', 'A GIF header (recognised but unsupported).', latin('GIF89a\u0001\u0000\u0001\u0000\u0000\u0000\u0000;'));

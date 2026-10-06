@@ -275,7 +275,7 @@ test.describe('cancellation, succession and reset', () => {
     await expect(page.locator('.working-text')).toContainText(/Reading|Inspecting/);
     await page.getByRole('button', { name: 'Cancel' }).click();
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('See what a file may reveal before you share it.');
-    await expect(page.getByText('Cancelled. Nothing was kept.')).toBeVisible();
+    await expect(page.locator('.notice')).toHaveText('Cancelled. Nothing was kept.');
     // A new file is analysed normally on a fresh worker.
     await chooseFile(page, fx('jpeg-gps.jpg'));
     await waitForResult(page);

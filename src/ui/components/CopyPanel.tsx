@@ -13,16 +13,18 @@ interface Props {
 }
 
 export function CopyPanel({ report, groups, selected, onToggle, onCreate, busy }: Props) {
-  if (report.format === 'pdf') {
+  if (report.format === 'pdf' || report.format === 'docx') {
+    const pdf = report.format === 'pdf';
     return (
       <section class="copy-panel" aria-labelledby="copy-h">
         <h2 id="copy-h" class="section-title">
           Experimental copy
         </h2>
         <p>
-          Copies are not offered for PDF files. A PDF can keep earlier versions, compressed objects and structures that this tool cannot rewrite and
-          then verify, so it only inspects them. To share a PDF with fewer details, use the program that created it and check the result with this
-          tool.
+          {pdf
+            ? 'Copies are not offered for PDF files. A PDF can keep earlier versions, compressed objects and structures that this tool cannot rewrite and then verify, so it only inspects them.'
+            : 'Copies are not offered for DOCX files. A Word document keeps comments, tracked changes, revision data and embedded parts that this tool cannot rewrite and then verify, so it only inspects them.'}{' '}
+          To share {pdf ? 'a PDF' : 'a document'} with fewer details, use the program that created it and check the result with this tool.
         </p>
       </section>
     );

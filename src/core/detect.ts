@@ -12,6 +12,8 @@ export interface Detection {
   recognisedUnsupported: boolean;
 }
 
+export const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
 /** How many leading bytes detection needs. PDF headers may be preceded by up to 1024 bytes of junk. */
 export const SNIFF_BYTES = 1032;
 
@@ -66,6 +68,7 @@ const EXT_FOR: Record<FormatId, string[]> = {
   jpeg: ['jpg', 'jpeg', 'jpe', 'jfif'],
   png: ['png'],
   pdf: ['pdf'],
+  docx: ['docx', 'docm', 'dotx', 'dotm'],
 };
 
 export function extensionOf(name: string): string {

@@ -134,7 +134,7 @@ export async function verifyCopy(
     detail: coreEqual ? 'Image data and structural headers were copied without change, so the picture was not re-encoded.' : 'The picture data differs from the original.',
   });
 
-  const displayEqual = format === 'pdf' ? true : equal(displayData(original, format), displayData(output, format));
+  const displayEqual = format === 'pdf' || format === 'docx' ? true : equal(displayData(original, format), displayData(output, format));
   checks.push({
     id: 'display-data',
     label: 'Colour profile and display chunks are byte-identical to the original',
@@ -205,7 +205,7 @@ export async function createCopy(
   groups: string[],
   decode?: DecodeCompare,
 ): Promise<TransformResult> {
-  if (report.format === 'pdf') throw new RefusedError('Copies are not offered for PDF files.');
+  if (report.format === 'pdf' || report.format === 'docx') throw new RefusedError('Copies are not offered for this format.');
   if (report.copyRefusal) throw new RefusedError(report.copyRefusal);
   if (groups.length === 0) throw new RefusedError('Choose at least one item to remove.');
   const before = await sha256Hex(original);

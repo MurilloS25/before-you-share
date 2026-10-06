@@ -30,6 +30,8 @@ PDF: basic Info, XMP, annotation, form, attachment, JavaScript, link and Launch 
 dictionary, incremental update, truncated, malformed, count mismatch, 300 pages, layers, fake extension,
 hostile metadata, minimal.
 
-Other: GIF header, plain text, empty file.
+DOCX: basic properties, comments and tracked changes with hidden text and session IDs, embedded media/object/thumbnail/custom XML/external references, macro placeholder, a 200 MiB compression bomb (about 200 KB on disk), lying sizes, path-traversal names, duplicate entries, an encrypted-flag entry, 2,500 entries, hostile properties, fake extension, truncated.
+
+Other: ZIP with a text file, GIF header, plain text, empty file.
 
 `MANIFEST.json` lists each file with a one-line description.

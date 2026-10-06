@@ -27,7 +27,9 @@ Open http://127.0.0.1:4173 in a browser. Keep the browser's developer tools **Ne
    never run).
 4. **Fake extension**: choose `jpeg-fake-extension.png`. Expect "JPEG image" detected from content and a
    finding about the name and type not matching.
-5. **Unsupported**: choose `unsupported.gif` or `unsupported.txt`. Expect a calm "not supported" screen.
+5. **Unsupported**: choose `unsupported.gif`, `unsupported.txt` or `zip-not-docx.zip`. Expect a calm "not supported" screen.
+   Then choose `docx-comments-tracked.docx` (inspection only: authors, tracked changes, comments counted, no copy button) and
+   `docx-zipbomb.docx` (flagged as a possible compression bomb, inspected in well under a second).
 6. **Cancellation**: generate a slow synthetic file with `npx tsx scripts/make-slow-pdf.ts slow-example.pdf`
    (a 60 MiB file of repeated objects that takes seconds to inspect), choose it and press Cancel. Expect the
    start screen and "Cancelled. Nothing was kept."

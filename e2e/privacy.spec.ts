@@ -23,6 +23,11 @@ test.describe('local-only processing is enforced, not just claimed', () => {
       await expect(page.locator('.verdict[data-ok="true"]')).toBeVisible({ timeout: 30_000 });
       await page.getByRole('button', { name: 'Clear and start over' }).last().click();
     }
+    for (const f of ['docx-embedded.docx', 'docx-macro.docx']) {
+      await chooseFile(page, fx(f));
+      await waitForResult(page);
+      await page.getByRole('button', { name: 'Clear and start over' }).first().click();
+    }
     for (const f of ['pdf-xmp.pdf', 'pdf-link-actions.pdf', 'pdf-javascript.pdf', 'pdf-attachment.pdf']) {
       await chooseFile(page, fx(f));
       await waitForResult(page);

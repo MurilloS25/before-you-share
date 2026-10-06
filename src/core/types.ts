@@ -105,6 +105,16 @@ export interface AnalysisReport {
   elapsedMs: number;
   /** PDF only: facts from the reviewed library. */
   pdf?: PdfSummary;
+  /** DOCX only. */
+  docx?: DocxSummary;
+}
+
+export interface DocxSummary {
+  entries: number;
+  declaredUncompressed: number;
+  partsRead: number;
+  macroEnabled: boolean;
+  encrypted: boolean;
 }
 
 export interface PdfSummary {

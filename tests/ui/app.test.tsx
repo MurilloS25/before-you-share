@@ -255,6 +255,21 @@ describe('inspection result', () => {
   });
 });
 
+describe('DOCX results', () => {
+  it('are inspection-only: findings, active features and limits, no copy and no preview', async () => {
+    const report = await analyseFixture('docx-comments-tracked.docx');
+    await open(file('d.docx', fixture('docx-comments-tracked.docx'), 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'), report);
+    expect(screen.getByText('Word document (DOCX)')).toBeTruthy();
+    expect(screen.getByText('Tracked changes')).toBeTruthy();
+    expect(screen.getByText('Comment authors')).toBeTruthy();
+    expect(screen.getByText(/Copies are not offered for DOCX files/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Make experimental copy' })).toBeNull();
+    expect(screen.getByText(/No preview is shown for Word documents/)).toBeTruthy();
+    expect(document.querySelector('img')).toBeNull();
+    expect(created.length).toBe(0); // no object URL is created for a document
+  });
+});
+
 describe('experimental copy', () => {
   it('lists what is removed, kept and may change before anything runs', async () => {
     const report = await analyseFixture('jpeg-kitchen-sink.jpg');

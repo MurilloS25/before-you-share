@@ -18,7 +18,7 @@ download it. The original is never modified. Nothing leaves the device.
 | JPEG | Deep: marker walk, JFIF, EXIF (IFD0, Exif, GPS, IFD1 thumbnail), XMP (+extended pointer), IPTC/Photoshop, ICC header, comments, MPF, unknown APPn, trailing data, dimensions | Lossless segment removal (no re-encode); orientation kept via minimal EXIF | Extension / MIME mismatch, truncation, bad lengths, duplicates, extreme dimensions |
 | PNG | Deep: every chunk, CRC, order, tEXt/zTXt/iTXt (bounded inflate), XMP, eXIf, tIME, pHYs, iCCP, APNG, unknown chunks, data after IEND | Lossless chunk removal by explicit policy table | Representation chunks always kept |
 | PDF | Bounded: pdf.js (hardened) for Info, XMP, pages, annotations, forms, attachments names, JS actions, layers, signatures flag; raw byte scan for indicators; page-1 inert bitmap preview | **None** (inspect-only) | Encrypted files are reported, never opened |
-| DOCX | Stretch; only after the three above pass every gate | – | See "DOCX decision" below |
+| DOCX | Bounded: ZIP safety, core/app/custom properties, comments and tracked changes (counts, authors, dates), hidden text, external references, embedded parts, macro indicator | **None** (inspect-only) | See "DOCX decision" below |
 
 Excluded: any upload, backend, account, analytics, AI, malware claims, password recovery,
 steganography detection, in-place edits, automatic downloads.
@@ -78,7 +78,7 @@ Wording never says "clean", "safe" or "all metadata removed".
 
 ## DOCX decision
 
-Not started. Phases 1 to 7 are complete, but DOCX was left out so the three main formats could get their depth and review; it remains a documented limitation.
+Started only after JPEG, PNG and PDF were finished, reviewed and green. Implemented as inspection only with an own bounded ZIP reader (ADR 0010). It was added after the four independent reviews of the main formats, so the DOCX code has had the automated tests, property/mutation tests and e2e/axe/privacy gates but **not** a separate independent review.
 
 ## Risks
 

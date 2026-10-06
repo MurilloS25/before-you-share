@@ -24,7 +24,7 @@ function pixels(bitmap: ImageBitmap): Uint8ClampedArray {
  * limit are not decoded at all. Memory is released as soon as each bitmap has been compared.
  */
 export async function compareDecoded(original: Uint8Array, copy: Uint8Array, format: FormatId, declared: { width: number; height: number } | null): Promise<DecodeComparison> {
-  if (format === 'pdf') return { dimensionsEqual: null, pixelsIdentical: null, detail: 'Not applicable to PDF.', failed: false };
+  if (format === 'pdf' || format === 'docx') return { dimensionsEqual: null, pixelsIdentical: null, detail: 'Not applicable to this format.', failed: false };
   if (typeof createImageBitmap !== 'function' || typeof OffscreenCanvas === 'undefined') {
     return { dimensionsEqual: null, pixelsIdentical: null, detail: 'This browser cannot decode images in a worker, so the visual comparison was skipped.', failed: false };
   }

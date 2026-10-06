@@ -1,8 +1,8 @@
-import { buildFingerprint, detectFormat, SNIFF_BYTES, type Detection } from './detect';
+import { buildFingerprint, detectFormat, DOCX_MIME, SNIFF_BYTES, type Detection } from './detect';
 import { FindingSink } from './findings';
 import { LIMITS, type FormatId } from './limits';
 import { RefusedError } from './errors';
-import type { AnalysisReport, Fingerprint, PdfSummary } from './types';
+import type { AnalysisReport, DocxSummary, Fingerprint, PdfSummary } from './types';
 import type { FormatAnalysis } from '../formats/common';
 import { analyseJpeg } from '../formats/jpeg';
 import { analysePng } from '../formats/png';
@@ -34,7 +34,17 @@ export function sizeLimitFor(format: FormatId): number {
 
 export async function analyseBytes(bytes: Uint8Array, meta: FileMeta, now: () => number = () => performance.now()): Promise<AnalysisOutcome> {
   const started = now();
-  const detection = detectFormat(bytes.subarray(0, SNIFF_BYTES));
+  let detection = detectFormat(bytes.subarray(0, SNIFF_BYTES));
+  // A ZIP is a DOCX only if its directory has the Word package parts. Anything else stays "unsupported".
+  let docxDir: import('../formats/zip').ZipDirectory | null = null;
+  if (!detection.format && detection.mime === 'application/zip' && bytes.length <= LIMITS.maxFileBytes.docx) {
+    const [zip, docx] = await Promise.all([import('../formats/zip'), import('../formats/docx')]);
+    const dir = zip.readZipDirectory(bytes);
+    if (docx.looksLikeDocx(dir)) {
+      docxDir = dir;
+      detection = { format: 'docx', mime: DOCX_MIME, label: 'Word document (DOCX)', recognisedUnsupported: false };
+    }
+  }
   const sha = await sha256Hex(bytes);
   const fingerprint = buildFingerprint(bytes.length, meta.name, meta.type, detection, sha);
   const format = detection.format;
@@ -45,9 +55,15 @@ export async function analyseBytes(bytes: Uint8Array, meta: FileMeta, now: () =>
 
   let analysis: FormatAnalysis;
   let pdf: PdfSummary | undefined;
+  let docxSummary: DocxSummary | undefined;
   if (format === 'jpeg') analysis = analyseJpeg(bytes);
   else if (format === 'png') analysis = await analysePng(bytes);
-  else {
+  else if (format === 'docx') {
+    const mod = await import('../formats/docx');
+    const res = await mod.analyseDocx(bytes, docxDir ?? undefined);
+    analysis = res;
+    docxSummary = res.docx;
+  } else {
     // PDF tooling is only loaded when a PDF is actually inspected.
     const mod = await import('../formats/pdf');
     const res = await mod.analysePdf(bytes);
@@ -83,5 +99,6 @@ export async function analyseBytes(bytes: Uint8Array, meta: FileMeta, now: () =>
     elapsedMs: Math.round(now() - started),
   };
   if (pdf) report.pdf = pdf;
+  if (docxSummary) report.docx = docxSummary;
   return { supported: true, report };
 }

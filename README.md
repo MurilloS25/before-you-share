@@ -2,7 +2,7 @@
 
 See what a file may reveal before you share it.
 
-Before You Share is an experimental, local-first web tool. You open a JPEG, PNG or PDF; it lists the
+Before You Share is an experimental, local-first web tool. You open a JPEG, PNG, PDF or DOCX; it lists the
 hidden or easily overlooked information it can find (where a photo was taken, which device made it,
 who is named as author, earlier versions, embedded thumbnails), shows where each item sits in the
 file, and says plainly what it could not check. For JPEG and PNG it can build a **separate,
@@ -22,7 +22,7 @@ deployed.
 | JPEG | Deep (JFIF, EXIF incl. GPS and thumbnail, XMP, IPTC/Photoshop, ICC, comments, MPF, unknown segments, trailing data, structure) | Yes, lossless metadata removal, verified |
 | PNG | Deep (every chunk, CRC, order, text, XMP, EXIF, time, ICC, unknown chunks, data after IEND) | Yes, lossless metadata removal, verified |
 | PDF | Bounded (Info, XMP, IDs, pages, annotations, forms, attachments, JavaScript and action indicators, layers, signatures flag, revisions) | **No**: inspection only |
-| DOCX | Not implemented | No |
+| DOCX | Bounded, inspection only (properties, comments and tracked changes counted, embedded parts, external references, macro indicator, ZIP safety checks) | **No**: inspection only |
 
 Details and honest coverage limits: [docs/FORMATS.md](docs/FORMATS.md) and
 [docs/LIMITATIONS.md](docs/LIMITATIONS.md).

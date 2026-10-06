@@ -6,7 +6,7 @@ export const MiB = 1024 * 1024;
 
 export const LIMITS = {
   /** Maximum bytes accepted per detected format. Larger files are refused before being read. */
-  maxFileBytes: { jpeg: 48 * MiB, png: 48 * MiB, pdf: 64 * MiB } as const,
+  maxFileBytes: { jpeg: 48 * MiB, png: 48 * MiB, pdf: 64 * MiB, docx: 32 * MiB } as const,
   /** Hard ceiling for any file: refused before reading even to detect the format. */
   maxAnyFileBytes: 64 * MiB,
   /** Largest declared pixel count for which the app decodes, previews or compares an image. */
@@ -31,8 +31,14 @@ export const LIMITS = {
   maxIccBytes: 4 * MiB,
   /** PDF */
   maxPdfPagesInspected: 200,
+  /** DOCX (ZIP) */
+  maxZipEntries: 2000,
+  maxZipPartBytes: 512 * 1024,
+  maxZipTotalInflate: 6 * MiB,
+  maxZipDeclaredTotal: 512 * MiB,
+  maxZipRatio: 1000,
   /** Wall-clock budget for one analysis or transformation job. */
   jobTimeoutMs: 30_000,
 } as const;
 
-export type FormatId = 'jpeg' | 'png' | 'pdf';
+export type FormatId = 'jpeg' | 'png' | 'pdf' | 'docx';

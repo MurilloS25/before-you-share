@@ -57,6 +57,11 @@ test.describe('axe (WCAG 2.x A/AA and best practice) on every state', () => {
     await axe(page, 'pdf result with preview');
     await page.getByRole('button', { name: 'Clear and start over' }).first().click();
 
+    await chooseFile(page, fx('docx-embedded.docx'));
+    await waitForResult(page);
+    await axe(page, 'docx result');
+    await page.getByRole('button', { name: 'Clear and start over' }).first().click();
+
     await chooseFile(page, fx('unsupported.gif'));
     await waitForResult(page);
     await axe(page, 'unsupported');

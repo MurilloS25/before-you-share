@@ -11,13 +11,13 @@ export interface InflateResult {
  * Inflate zlib data with a hard output cap. Reading stops (and the stream is cancelled) as soon as
  * more than `max` bytes would be produced, so a bomb costs at most `max` plus one chunk of memory.
  */
-export async function inflateBounded(data: Uint8Array, max: number): Promise<InflateResult> {
+export async function inflateBounded(data: Uint8Array, max: number, format: 'deflate' | 'deflate-raw' = 'deflate'): Promise<InflateResult> {
   const chunks: Uint8Array[] = [];
   let total = 0;
   let truncated = false;
   let error = false;
   if (typeof DecompressionStream === 'undefined') return { bytes: new Uint8Array(0), truncated: false, error: true };
-  const ds = new DecompressionStream('deflate');
+  const ds = new DecompressionStream(format);
   const writer = ds.writable.getWriter();
   const copy = new Uint8Array(data); // the stream may detach/transfer its input
   void writer

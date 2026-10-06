@@ -64,6 +64,7 @@ describe('random bytes never break the analysers', () => {
     ['jpeg', Uint8Array.of(0xff, 0xd8, 0xff)],
     ['png', Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])],
     ['pdf', latin('%PDF-1.7\n')],
+    ['zip', Uint8Array.of(0x50, 0x4b, 3, 4)],
   ])('arbitrary bytes behind a %s signature', async (_n, sig) => {
     await fc.assert(
       fc.asyncProperty(bytesArb, async (b) => {
@@ -87,7 +88,7 @@ const mutate = (src: Uint8Array) =>
     });
 
 describe('mutated fixtures (bit flips and truncation)', () => {
-  const cases = ['jpeg-kitchen-sink.jpg', 'jpeg-iptc.jpg', 'jpeg-duplicate-segments.jpg', 'png-kitchen-sink.png', 'png-xmp.png', 'png-itxt.png'];
+  const cases = ['jpeg-kitchen-sink.jpg', 'jpeg-iptc.jpg', 'jpeg-duplicate-segments.jpg', 'png-kitchen-sink.png', 'png-xmp.png', 'png-itxt.png', 'docx-comments-tracked.docx', 'docx-embedded.docx', 'docx-macro.docx'];
   it.each(cases)('%s analyses without throwing and bounds evidence', async (file) => {
     const src = fixture(file);
     await fc.assert(

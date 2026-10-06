@@ -16,8 +16,9 @@ Plain statements of what this tool does not do or cannot promise.
 - **Sizes.** 48 MiB images and 64 MiB PDFs. Very small devices may run out of memory earlier. If the browser raises an error the tool reports a failure and keeps nothing; a crashed tab cannot be reported. Out-of-memory is not tested.
 - **Orientation in PNG.** How viewers treat an Orientation tag inside eXIf is not settled in the sources
   checked, so it is preserved rather than assumed.
-- **DOCX and other formats** are not supported. WebP, GIF, HEIC, TIFF, ZIP and Office files are recognised
-  by signature and refused with an explanation.
+- **DOCX is inspection only.** Document text, headers and footers, the text of comments and tracked changes, and
+  the contents of embedded files are not read. Other Office files (XLSX, PPTX, legacy .doc) are not supported.
+  WebP, GIF, HEIC, TIFF and ordinary ZIP files are recognised by signature and refused with an explanation.
 - **Not a security product.** It does not detect malware and does not say a file is safe to open.
 - **Hash.** SHA-256 identifies bytes. It needs a secure browsing context (https or localhost).
 - **No dark theme.** Only a designed light theme ships.

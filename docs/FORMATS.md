@@ -56,4 +56,18 @@ are not embedded may not render because font data is not fetched.
 
 ## DOCX
 
-Not implemented and not started.
+Inspection only. A ZIP is treated as a DOCX only if its central directory contains `[Content_Types].xml` and
+`word/document.xml`; any other ZIP, and a damaged package, stays "not supported" (nothing is guessed).
+
+| Area | Coverage |
+| --- | --- |
+| Package safety | Own bounded ZIP directory reader: entry cap (2,000), ZIP64 reported not followed, encrypted entries reported, duplicate names, names that climb out of the package (`..`, absolute, backslash) flagged, declared sizes never trusted, compression ratio and declared total checked (flagged above 1000:1 or 512 MiB). **Nothing is extracted to disk.** Parts are read in memory with `DecompressionStream('deflate-raw')` capped at 512 KiB per part and 6 MiB in total |
+| Properties | `docProps/core.xml` (author, last modified by, dates, title, subject, keywords, description, category, revision), `app.xml` (application and version, company, manager, template, total editing time), `custom.xml` (names and values) |
+| Comments and tracked changes | Counted, with authors and dates. **The text of comments and of deleted content is not shown** |
+| Hidden text, editing sessions | `w:vanish` runs counted; distinct `w:rsidR` identifiers counted (not decoded) |
+| External references | Relationship targets with `TargetMode="External"` (links, attached templates, linked files) shown as text, never followed |
+| Embedded content | Media, embedded objects and ActiveX files, thumbnail, custom XML parts: listed from the directory by name and size, **not opened** |
+| Active features | Macro project (`vbaProject`) or macro-enabled content type: reported, never run or analysed; signature parts noted, validity not checked |
+| Not examined | Document text, headers, footers, footnotes, content and metadata inside embedded files, reconstruction of earlier versions |
+
+No copy is offered and no preview is shown for DOCX.

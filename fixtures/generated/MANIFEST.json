@@ -350,6 +350,90 @@
       "description": "Smallest valid page tree with no metadata."
     },
     {
+      "file": "docx-basic.docx",
+      "bytes": 1487,
+      "sha256": "af9d886615e65d6f7447e3fcbae02f93fa4457d151637b0b59c2b97c4ad6d871",
+      "description": "Core and app properties: author, last modified by, company, template, dates, revision, editing time."
+    },
+    {
+      "file": "docx-comments-tracked.docx",
+      "bytes": 1987,
+      "sha256": "46cd84701df2657fe5b2a7ebef7011a2a35976696717feeac10ebb8918dc60ed",
+      "description": "Comments by two reviewers, tracked insertions and deletions, hidden text and several editing-session IDs."
+    },
+    {
+      "file": "docx-embedded.docx",
+      "bytes": 11061,
+      "sha256": "96a806e81b92abf1c41bdec55cfbaf477dd79e262d9b63d8fa84bcced3ad90ad",
+      "description": "Embedded picture, OLE-style object, thumbnail, custom XML, custom properties and external references (a link and a template path)."
+    },
+    {
+      "file": "docx-macro.docx",
+      "bytes": 1835,
+      "sha256": "fcdb7b3363a52cd33c08f25b2940581dd76bbb221981b8c69182a7e794d3ac03",
+      "description": "A macro project entry and a macro-enabled content type (inert placeholder bytes)."
+    },
+    {
+      "file": "docx-zipbomb.docx",
+      "bytes": 205443,
+      "sha256": "06af4084a25256cc9092075c6f1179c777be87012bba8712317038695ef6a07d",
+      "description": "A part that expands from about 200 KB to 200 MiB (reading must stay capped)."
+    },
+    {
+      "file": "docx-lying-sizes.docx",
+      "bytes": 1729,
+      "sha256": "e1681abdbfde76228ed700e3006f84981306cb914915816893feb20d4157ee8d",
+      "description": "A tiny part whose central directory declares 4 GiB: declared sizes are not trusted."
+    },
+    {
+      "file": "docx-path-traversal.docx",
+      "bytes": 1796,
+      "sha256": "a7ad49392f1bd6dc6c8449e6cb266301e392d226e7cec0307c67f57a7148f24e",
+      "description": "Entry names that climb out of the package or use absolute and backslash paths (never extracted)."
+    },
+    {
+      "file": "docx-duplicate-entries.docx",
+      "bytes": 1628,
+      "sha256": "8e75a6ea4d6663c730b66b81f37ed058dfdd1301dd6fc6104540facc8a748134",
+      "description": "Two entries with the same name."
+    },
+    {
+      "file": "docx-encrypted-entry.docx",
+      "bytes": 1613,
+      "sha256": "4f16f464b80aad08892155031da1e7517d5267560e3ddb7ffbc9bcbe863fcabb",
+      "description": "One entry carries the ZIP encryption flag (contents are random bytes)."
+    },
+    {
+      "file": "docx-many-entries.docx",
+      "bytes": 284267,
+      "sha256": "ae3aceed924fbe937c2eca1c9e827dea84e57ee4ca8a9c5529ffd78dcbe45ab1",
+      "description": "2500 entries: the entry cap must hold."
+    },
+    {
+      "file": "docx-hostile-metadata.docx",
+      "bytes": 1352,
+      "sha256": "cc5ac38631cd3cbf4ebc28482ab8d09e352f12aa96b4b7dde1b132e9604d730d",
+      "description": "Properties containing markup, bidi controls and control characters (must render as text)."
+    },
+    {
+      "file": "docx-fake-extension.png",
+      "bytes": 1487,
+      "sha256": "af9d886615e65d6f7447e3fcbae02f93fa4457d151637b0b59c2b97c4ad6d871",
+      "description": "A DOCX stored under a .png name."
+    },
+    {
+      "file": "docx-truncated.docx",
+      "bytes": 600,
+      "sha256": "3bf0e00fe0040a4428716b38b44aa3f4a35a11bae00361496268e5310d9909ae",
+      "description": "A DOCX cut before its central directory."
+    },
+    {
+      "file": "zip-not-docx.zip",
+      "bytes": 143,
+      "sha256": "4d86e8fa37061a052914161e2f21a61252943fa4258a6cec7934dc79695931b3",
+      "description": "A ZIP with one text file (recognised container, not a Word package)."
+    },
+    {
       "file": "unsupported.gif",
       "bytes": 14,
       "sha256": "1f19970f056cd116a5fe3c02422c1ee1ac827136df470b5c89af492620512aa4",

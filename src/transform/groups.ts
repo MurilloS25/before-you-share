@@ -32,7 +32,7 @@ const DEFS: Record<'jpeg' | 'png', GroupDef[]> = {
 };
 
 export function removalGroupsFor(report: AnalysisReport): RemovalGroup[] {
-  if (report.format === 'pdf' || report.copyRefusal) return [];
+  if (report.format === 'pdf' || report.format === 'docx' || report.copyRefusal) return [];
   const defs = DEFS[report.format];
   return defs
     .map((d) => ({ ...d, findingCount: report.findings.filter((f) => f.group === d.id).length }))
@@ -40,5 +40,5 @@ export function removalGroupsFor(report: AnalysisReport): RemovalGroup[] {
 }
 
 export function groupIdsFor(format: FormatId): string[] {
-  return format === 'pdf' ? [] : DEFS[format].map((d) => d.id);
+  return format === 'pdf' || format === 'docx' ? [] : DEFS[format].map((d) => d.id);
 }

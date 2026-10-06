@@ -57,10 +57,12 @@ async function analyse(jobId: number, file: File): Promise<ResultPayload> {
   // Read only the first bytes to identify the format, so oversized or unsupported files are never fully loaded.
   const head = new Uint8Array(await file.slice(0, SNIFF_BYTES).arrayBuffer());
   const detection = detectFormat(head);
-  if (!detection.format) {
+  // A ZIP may be a DOCX; it is read (up to the DOCX limit) so its directory can be checked. Any other unknown content is not read.
+  const maybeDocx = !detection.format && detection.mime === 'application/zip' && file.size <= LIMITS.maxFileBytes.docx;
+  if (!detection.format && !maybeDocx) {
     return { kind: 'analysis', supported: false, fingerprint: buildFingerprint(file.size, file.name, file.type, detection, null), detection };
   }
-  const limit = LIMITS.maxFileBytes[detection.format];
+  const limit = detection.format ? LIMITS.maxFileBytes[detection.format] : LIMITS.maxFileBytes.docx;
   if (file.size > limit) throw new RefusedError(`This ${detection.label.toLowerCase()} is larger than the ${Math.round(limit / 1048576)} MiB this tool will read for that format.`);
   const bytes = await readAll(file, jobId);
   progress(jobId, 'inspecting', null);

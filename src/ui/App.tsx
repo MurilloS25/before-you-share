@@ -14,7 +14,7 @@ import { FileMap } from './components/FileMap';
 import { CoverageList, FindingsByCategory } from './components/Findings';
 import { CopyPanel } from './components/CopyPanel';
 import { VerificationView, type CopyResult } from './components/Verification';
-import { downloadName, formatBytes, plural, CATEGORY_LABEL, STATUS_HELP, STATUS_LABEL } from './lib/format';
+import { downloadName, formatBytes, isImageFormat, plural, CATEGORY_LABEL, STATUS_HELP, STATUS_LABEL } from './lib/format';
 import { MIME, ObjectUrlRegistry } from './lib/urls';
 
 interface Props {
@@ -127,7 +127,7 @@ export function App({ client, urls: urlsProp }: Props) {
     }
     const report = p.report;
     let originalUrl: string | null = null;
-    if (report.format !== 'pdf' && report.dimensions !== null && imageSizeRefusal(report.dimensions) === null && !report.structurallyUnsound) {
+    if (isImageFormat(report.format) && report.dimensions !== null && imageSizeRefusal(report.dimensions) === null && !report.structurallyUnsound) {
       // The slice carries a MIME type we choose, never the one the file declared.
       originalUrl = urls.create(f.slice(0, f.size, MIME[report.format]));
     }
@@ -172,7 +172,7 @@ export function App({ client, urls: urlsProp }: Props) {
       return setView({ ...base, copy: { kind: 'error', error: out.error } });
     }
     const p = out.payload;
-    if (p.kind !== 'transform' || base.report.format === 'pdf') return;
+    if (p.kind !== 'transform' || !isImageFormat(base.report.format)) return;
     const blob = new Blob([p.output], { type: MIME[base.report.format] });
     const url = urls.create(blob);
     setAnnounce('The experimental copy was built and re-inspected.');
@@ -268,7 +268,7 @@ export function App({ client, urls: urlsProp }: Props) {
                 to refuse network connections when it is served with its security headers.
               </p>
             </section>
-            {view.notice && <p class="notice" role="status">{view.notice}</p>}
+            {view.notice && <p class="notice">{view.notice}</p>}
             <DropZone onFile={open} />
             <Limits />
           </>
@@ -301,7 +301,7 @@ export function App({ client, urls: urlsProp }: Props) {
             </h1>
             <p class="section-lead">
               The content looks like <strong>{view.detection.label}</strong>
-              {view.detection.recognisedUnsupported ? ', which this tool does not inspect' : ', which this tool does not recognise'}. It inspects JPEG, PNG and PDF. It does
+              {view.detection.recognisedUnsupported ? ', which this tool does not inspect' : ', which this tool does not recognise'}. It inspects JPEG, PNG, PDF and DOCX. It does
               not guess, so nothing has been listed about this file.
             </p>
             <Identification name={view.name} fingerprint={view.fingerprint} detection={view.detection} />
@@ -332,9 +332,9 @@ function Limits() {
         What to expect
       </h2>
       <ul class="plain-list bullet">
-        <li>It reads JPEG, PNG and PDF by their content, not their name.</li>
+        <li>It reads JPEG, PNG, PDF and DOCX by their content, not their name.</li>
         <li>For JPEG and PNG it can make a separate experimental copy with chosen metadata removed, then inspect the copy again and compare it.</li>
-        <li>PDFs are inspected only. Page text and images are not analysed, and encrypted PDFs are not opened.</li>
+        <li>PDFs and Word documents are inspected only. Page text and images are not analysed, and encrypted PDFs are not opened.</li>
         <li>Nothing is complete. It lists what it could not check, and other hidden information may remain.</li>
       </ul>
     </section>
@@ -371,7 +371,11 @@ function ResultView({ view, busy, setView, actions }: ResultProps) {
 
       <Identification name={view.name} fingerprint={report.fingerprint} report={report} />
 
-      {report.format !== 'pdf' ? (
+      {report.format === 'pdf' ? (
+        <PdfPreviewBox state={view.pdfPreview} onShow={actions.showPdfPreview} busy={busy} />
+      ) : report.format === 'docx' ? (
+        <p class="fine-print">No preview is shown for Word documents. The tool does not render them.</p>
+      ) : (
         view.originalUrl ? (
           <figure class="original-preview">
             <img src={view.originalUrl} alt="The file as the browser displays it" decoding="async" />
@@ -380,8 +384,6 @@ function ResultView({ view, busy, setView, actions }: ResultProps) {
         ) : (
           <p class="fine-print">No preview is shown{report.structurallyUnsound ? ' because the file structure is damaged' : ' because the declared size is above what this tool decodes'}.</p>
         )
-      ) : (
-        <PdfPreviewBox state={view.pdfPreview} onShow={actions.showPdfPreview} busy={busy} />
       )}
 
       <FileMap findings={report.findings} fileSize={report.fingerprint.size} activeId={activeId} />
@@ -417,7 +419,7 @@ function ResultView({ view, busy, setView, actions }: ResultProps) {
           {view.copy.error.code === 'refused' ? '' : 'Choose the file again to try again.'}
         </p>
       )}
-      {view.copy.kind === 'done' && report.format !== 'pdf' && <VerificationView report={report} originalUrl={view.originalUrl} copy={view.copy.result} onDownload={actions.download} />}
+      {view.copy.kind === 'done' && isImageFormat(report.format) && <VerificationView report={report} originalUrl={view.originalUrl} copy={view.copy.result} onDownload={actions.download} />}
 
       <div class="reset-row">
         <button type="button" class="button" onClick={actions.reset}>

@@ -55,7 +55,7 @@ export function DropZone({ onFile, disabled }: Props) {
           onChange={(e) => take((e.currentTarget as HTMLInputElement).files)}
         />
         <span id="intake-note" class="dropzone-note">
-          JPEG, PNG or PDF. Images up to {LIMITS.maxFileBytes.jpeg / MiB} MiB, PDFs up to {LIMITS.maxFileBytes.pdf / MiB} MiB. The file is read in
+          JPEG, PNG, PDF or DOCX. Images up to {LIMITS.maxFileBytes.jpeg / MiB} MiB, PDFs up to {LIMITS.maxFileBytes.pdf / MiB} MiB, DOCX up to {LIMITS.maxFileBytes.docx / MiB} MiB. The file is read in
           this browser tab and is never uploaded.
         </span>
       </label>
