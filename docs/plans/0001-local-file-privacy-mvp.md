@@ -1,6 +1,6 @@
 # 0001 Local file privacy MVP
 
-Status: MVP implemented; awaiting manual acceptance. Written after the parser core and the fixture generator existed
+Status: completed and accepted (automated gates passed; manual acceptance of the final build recorded below). Written after the parser core and the fixture generator existed
 (the first slices were built to de-risk the format decisions below); the plan is the
 record of scope, gates and risks that the rest of the work is held to.
 
@@ -114,3 +114,26 @@ inspect-only with no copy action. No parser, limit, format, dependency or CSP ch
 Measured (desktop Edge, `jpeg-gps.jpg`): 1,254 px simple, 2,072 px after the copy, 4,849 px with the report open at 1440 x 900; 1,971 / 3,038 /
 6,347 px at 390 px. The simple view of the 600-finding file builds 62 nodes and no findings; opening the report takes about 70 ms. The copy is
 still experimental and its verification covers only what the tool can detect. Gates: all checks listed in `docs/HARNESS.md`.
+
+## Acceptance
+
+Two kinds of evidence are kept apart on purpose.
+
+- **Automated.** The checks listed in `docs/HARNESS.md` (typecheck, unit tests, fixture check, fuzz tests, build, build audit,
+  dependency audit, and the end-to-end suite in Microsoft Edge including axe, privacy and performance) passed on the final build.
+  Four independent read-only code reviews found no blocking defect; their P1 and reasonable P2 findings were fixed.
+- **Manual.** A person ran the final build locally in their own browser and approved the flow: the simple result, one-click
+  experimental copy, choosing what to remove, the technical report, PDF and DOCX inspection, and reset. This was a human check of
+  that flow only. It is not an independent audit and not a guarantee about any particular file.
+
+Remaining limitations, all documented in `docs/LIMITATIONS.md` and not resolved by this acceptance:
+
+- Firefox and Safari were not tested; automated tests ran in Microsoft Edge (Chromium) only.
+- No screen-reader testing was done. Accessibility was checked with axe, keyboard and focus tests, and layout checks at 320, 390 and
+  1440 px, 200% text and reduced motion.
+- Heading levels inside the technical report are flat (all level 2).
+- The browser's find-in-page (Ctrl+F) cannot see the technical report, or any closed details, until they are opened.
+- The experimental copy remains experimental: its verification covers only what this tool can detect, and other hidden information
+  may remain.
+
+Nothing is deployed. Publishing is a separate, later decision (`docs/DEPLOYMENT.md`).
