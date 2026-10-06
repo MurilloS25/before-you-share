@@ -24,6 +24,10 @@ deployed.
 | PDF | Bounded (Info, XMP, IDs, pages, annotations, forms, attachments, JavaScript and action indicators, layers, signatures flag, revisions) | **No**: inspection only |
 | DOCX | Bounded, inspection only (properties, comments and tracked changes counted, embedded parts, external references, macro indicator, ZIP safety checks) | **No**: inspection only |
 
+The results screen starts with a plain "Before you share" summary by category (no score, no verdict) and, for JPEG and PNG, a button
+that jumps to the experimental copy options. Technical detail (SHA-256, file map, evidence, manifest) is folded until opened, and long
+finding lists show 10 at a time with a control to reveal the rest.
+
 Details and honest coverage limits: [docs/FORMATS.md](docs/FORMATS.md) and
 [docs/LIMITATIONS.md](docs/LIMITATIONS.md).
 

@@ -103,7 +103,7 @@ test.describe('JPEG', () => {
     const w = await openApp(page);
     await chooseFile(page, fx('jpeg-clean.jpg'));
     await waitForResult(page);
-    await expect(page.getByText('Nothing that this tool can remove was found')).toBeVisible();
+    await expect(page.locator('.copy-panel').getByText('Nothing that this tool can remove was found')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Make experimental copy' })).toHaveCount(0);
     expectClean(w);
   });
@@ -113,7 +113,7 @@ test.describe('JPEG', () => {
     await chooseFile(page, fx('jpeg-truncated.jpg'));
     await waitForResult(page);
     await expect(page.getByText('JPEG ends unexpectedly')).toBeVisible();
-    await expect(page.getByText(/No copy is offered for this file/)).toBeVisible();
+    await expect(page.locator('.copy-panel').getByText(/No copy is offered for this file/)).toBeVisible();
     expectClean(w);
   });
 
@@ -123,7 +123,7 @@ test.describe('JPEG', () => {
     await waitForResult(page);
     await expect(page.getByText('Very large declared image size')).toBeVisible();
     await expect(page.locator('.original-preview')).toHaveCount(0);
-    await expect(page.getByText(/No copy is offered/)).toBeVisible();
+    await expect(page.locator('.copy-panel').getByText(/No copy is offered/)).toBeVisible();
     expectClean(w);
   });
 });

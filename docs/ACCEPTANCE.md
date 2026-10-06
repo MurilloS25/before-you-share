@@ -16,9 +16,11 @@ Open http://127.0.0.1:4173 in a browser. Keep the browser's developer tools **Ne
 
 ## Scenarios
 
-1. **JPEG with GPS**: choose `jpeg-gps.jpg`. Expect a Location section with `0.250000° N, 0.750000° E`
-   (Verified), camera maker and model, a file map with marks, and "What this tool did not fully check" at
-   the end. Open "Evidence and limits" on GPS position: source, byte range, copy support.
+1. **JPEG with GPS**: choose `jpeg-gps.jpg`. Expect a "Before you share" block near the top that says the file contains an exact
+   location (GPS coordinates) and lists device details, with no score and no verdict. Press "Review copy options": the page scrolls to
+   the experimental copy panel and its heading takes focus. Below, the Location section shows `0.250000° N, 0.750000° E` (Verified) and
+   "What this tool did not fully check" is easy to find. Open "Evidence and limits" on GPS position: source, byte range, copy support.
+   SHA-256, the status legend and the file map are folded; open them to see them.
 2. **PNG with text**: choose `png-text.png`. Expect author, software, creation time and a comment from
    tEXt entries, each with its source chunk.
 3. **PDF with properties**: choose `pdf-basic.pdf`. Expect title, author, creator, producer, dates,
@@ -45,6 +47,12 @@ Open http://127.0.0.1:4173 in a browser. Keep the browser's developer tools **Ne
     other host, no POST, no request with a query string.
 
 ## Things to try on purpose
+
+- **Many findings**: choose `many-findings.jpg` if the session folder provides it (generate one with
+  `npx tsx scripts/make-many-findings.ts many-findings.jpg`). The Document properties category shows 10 findings, "Showing 10 of 599
+  findings" and "Show 50 more" / "Show all" buttons. Reveal them with the keyboard (focus moves to the first new item).
+- **Jump and focus by keyboard**: Tab to "Review copy options", press Enter; the copy panel heading is focused. Try the category links too.
+- **Inspection-only formats**: `pdf-basic.pdf` and `docx-comments-tracked.docx` show an honest sentence and no copy action.
 
 - Drag a file onto the plate; then use the keyboard only (Tab to the plate, Enter to open the picker).
 - Zoom the page to 400% and check there is no sideways scrolling.

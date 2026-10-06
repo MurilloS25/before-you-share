@@ -93,3 +93,11 @@ Started only after JPEG, PNG and PDF were finished, reviewed and green. Implemen
 
 Static hosting (for example Vercel Hobby) with the CSP as response headers. Documented in
 `docs/DEPLOYMENT.md`; nothing is deployed by this work.
+
+## Follow-up round: results hierarchy and large lists
+
+A limited UX and performance pass after the first acceptance review. No new formats, services or limits. Changes: a "Before you share"
+block (categories, not findings; one primary action to the single copy panel with a real focus move), progressive disclosure of technical
+detail (SHA-256, reported type, status legend, file map; evidence, manifest and the structural category are built only when opened),
+and bounded finding lists ("Show more", 10 first, everything still reachable). Gate: presenting the 600-finding result keeps the main
+thread under a 250 ms budget (measured in `e2e/performance.spec.ts`; numbers in `docs/LIMITS.md`). `maxFindings` and parser limits are unchanged.

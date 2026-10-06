@@ -34,11 +34,13 @@ printed as a `PERF` line by that test):
 
 | Measurement | Result |
 | --- | --- |
-| Cancel clicked during a slow inspection, until the start screen is back | 52 ms |
-| Longest main-thread stall while a 50 MiB slow PDF was being inspected in the worker | 4 ms |
-| 40 MiB PNG (one unknown chunk of random data) inspected, from choosing the file to the result | 1,119 ms |
-| 40 MiB JPEG made of 620 comment segments inspected (finding cap reached) | 913 ms |
-| Longest main-thread stall while drawing 600 findings after that JPEG | 531 ms |
-| Typical fixtures (kitchen-sink JPEG, kitchen-sink PNG, XMP PDF) | 210 ms, 63 ms, 217 ms |
-| Copy of a 30 MiB PNG built and verified | 994 ms |
+| Cancel clicked during a slow inspection, until the start screen is back | 49 ms |
+| Longest main-thread stall while a 50 MiB slow PDF was being inspected in the worker | 10 ms |
+| 40 MiB PNG (one unknown chunk of random data) inspected, from choosing the file to the result | 947 ms |
+| 40 MiB JPEG made of 620 comment segments inspected (finding cap reached), choose file to result | 367 ms |
+| Presenting that 600-finding result (40 MiB JPEG at the finding cap): longest timer gap / longest Long Task on the main thread, from choosing the file until the result settled | 81 ms / 54 ms (the same measurement was about 700 ms and 531 ms before finding lists were bounded; the test limit is 250 ms, it was 1,500 ms) |
+| Same screen: DOM nodes and rendered findings | about 306 nodes, 11 findings (10 plus the cap notice) instead of every finding |
+| User action "Show all 589 remaining" on that category: longest timer gap / Long Task | 474 ms / 418 ms (a deliberate action; the test limit is 1,000 ms) |
+| Typical fixtures (kitchen-sink JPEG, kitchen-sink PNG, XMP PDF) | 178 ms, 63 ms, 216 ms |
+| Copy of a 30 MiB PNG built and verified | 977 ms |
 | Main-thread JS heap growth after three copy and reset cycles (worker and buffer memory are not measured) | 1 MiB |
