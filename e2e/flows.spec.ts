@@ -2,7 +2,9 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import { analyseBytes } from '../src/core/analyze';
-import { chooseFile, expectClean, fx, openApp, urlCounts, waitForResult } from './support';
+import { chooseFile, cleanupTempFiles, expectClean, fx, openApp, tempFile, urlCounts, waitForResult } from './support';
+
+test.afterEach(() => cleanupTempFiles());
 
 const sha = (b: Buffer | Uint8Array): string => createHash('sha256').update(b).digest('hex');
 
@@ -53,8 +55,8 @@ test.describe('JPEG', () => {
     const imgs = page.locator('.compare img');
     await expect(imgs).toHaveCount(2);
     for (const ok of await imgs.evaluateAll((els) => els.map((i) => (i as HTMLImageElement).complete && (i as HTMLImageElement).naturalWidth > 0))) expect(ok).toBe(true);
-    await expect(page.getByText('No longer detected')).toBeVisible();
-    await expect(page.getByText('Still detected')).toBeVisible();
+    await expect(page.getByRole('heading', { name: /^No longer detected/ })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /^Still detected/ })).toBeVisible();
 
     // Download is a separate, clearly named file; nothing downloaded before the click.
     const download = page.waitForEvent('download');
@@ -134,8 +136,8 @@ test.describe('PNG', () => {
     await waitForResult(page);
     await expect(page.getByText('Example Person').first()).toBeVisible();
     await expect(page.getByText('Título ✓')).toBeVisible();
-    await expect(page.getByText('Data after IEND')).toBeVisible();
-    await expect(page.getByText('Unrecognised chunk')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Data after IEND' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Unrecognised chunk' })).toBeVisible();
     await page.getByRole('button', { name: 'Make experimental copy' }).click();
     await expect(page.locator('.verdict[data-ok="true"]')).toBeVisible({ timeout: 30_000 });
     await expect(page.locator('.checks li[data-status="fail"]')).toHaveCount(0);
@@ -178,7 +180,7 @@ test.describe('PDF', () => {
     await chooseFile(page, fx('pdf-javascript.pdf'));
     await waitForResult(page);
     await expect(page.getByText('JavaScript or scripted action')).toBeVisible();
-    await expect(page.getByText(/never runs them/)).toBeVisible();
+    await expect(page.locator('.finding-why', { hasText: /never runs them/ })).toBeVisible();
     await page.getByRole('button', { name: 'Clear and start over' }).first().click();
     await chooseFile(page, fx('pdf-link-actions.pdf'));
     await waitForResult(page);
@@ -243,14 +245,14 @@ test.describe('unsupported, mismatched and refused files', () => {
     big[0] = 0xff;
     big[1] = 0xd8;
     big[2] = 0xff;
-    await chooseFile(page, { name: 'huge.jpg', mimeType: 'image/jpeg', buffer: big });
+    await chooseFile(page, tempFile('huge.jpg', big));
     await expect(page.getByRole('heading', { level: 1, name: 'This file is too large' })).toBeVisible();
     await page.getByRole('button', { name: 'Choose another file' }).click();
     const mid = Buffer.alloc(50 * 1024 * 1024);
     mid[0] = 0xff;
     mid[1] = 0xd8;
     mid[2] = 0xff;
-    await chooseFile(page, { name: 'big.jpg', mimeType: 'image/jpeg', buffer: mid });
+    await chooseFile(page, tempFile('big.jpg', mid));
     await expect(page.getByRole('heading', { level: 1, name: 'This could not be done' })).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(/larger than the 48 MiB/)).toBeVisible();
     expectClean(w);
@@ -268,9 +270,9 @@ test.describe('cancellation, succession and reset', () => {
   test('cancel during inspection stops the job, keeps nothing, and the next file works', async ({ page }) => {
     const w = await openApp(page);
     const loaded = w.mark();
-    await chooseFile(page, { name: 'slow.pdf', mimeType: 'application/pdf', buffer: slowPdf() });
+    await chooseFile(page, tempFile('slow.pdf', slowPdf()));
     await expect(page.getByRole('heading', { level: 1, name: 'Inspecting' })).toBeVisible();
-    await expect(page.getByRole('status').filter({ hasText: /Reading|Inspecting/ })).toBeVisible();
+    await expect(page.locator('.working-text')).toContainText(/Reading|Inspecting/);
     await page.getByRole('button', { name: 'Cancel' }).click();
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('See what a file may reveal before you share it.');
     await expect(page.getByText('Cancelled. Nothing was kept.')).toBeVisible();
@@ -283,7 +285,7 @@ test.describe('cancellation, succession and reset', () => {
 
   test('choosing a second file while the first is running supersedes it (no stale result)', async ({ page }) => {
     const w = await openApp(page);
-    await chooseFile(page, { name: 'slow.pdf', mimeType: 'application/pdf', buffer: slowPdf() });
+    await chooseFile(page, tempFile('slow.pdf', slowPdf()));
     await expect(page.getByRole('heading', { level: 1, name: 'Inspecting' })).toBeVisible();
     // The file input is replaced while busy only through Clear; use the reset path as the user would.
     await page.getByRole('button', { name: 'Clear and start over' }).click();

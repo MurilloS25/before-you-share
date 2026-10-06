@@ -106,12 +106,12 @@ export function FindingsByCategory({ findings, activeId, onActive }: Props) {
         return (
           <section class="category" id={`cat-${cat}`} key={cat} aria-labelledby={`cat-h-${cat}`} data-category={cat}>
             {cat === 'structural' ? (
-              <details>
+              <details open={items.some((f) => f.status !== 'verified' || f.code === 'file.type-mismatch') || undefined}>
                 <summary>
                   <h2 id={`cat-h-${cat}`} class="category-title inline-heading">
                     {CATEGORY_LABEL[cat]} <span class="count">{items.length}</span>
                   </h2>
-                  <span class="category-hint"> {CATEGORY_HINT[cat]} Shown collapsed.</span>
+                  <span class="category-hint"> {CATEGORY_HINT[cat]}</span>
                 </summary>
                 {list}
               </details>

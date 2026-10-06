@@ -204,7 +204,7 @@ describe('inspection result', () => {
     // Statuses are words, not colour only.
     const unsupported = screen.getByText('Manufacturer-specific data (MakerNote)').closest('li')!;
     expect(within(unsupported).getByText('Not supported')).toBeTruthy();
-    const suspicious = screen.getAllByText('Data after the end of the image').map((e) => e.closest('li.finding')).find(Boolean)!;
+    const suspicious = screen.getAllByText('Data after the end of the image').map((e) => e.closest<HTMLElement>('li.finding')).find(Boolean)!;
     expect(within(suspicious).getByText('Suspicious')).toBeTruthy();
     expect(screen.getByText(/Suspicious/, { selector: 'em' })).toBeTruthy();
     // Coverage and limits are always present.

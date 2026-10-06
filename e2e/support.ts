@@ -1,5 +1,6 @@
 import { expect, type Page } from '@playwright/test';
-import { readdirSync } from 'node:fs';
+import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 export const fx = (name: string): string => join(process.cwd(), 'fixtures', 'generated', name);
@@ -87,6 +88,19 @@ export async function openApp(page: Page): Promise<Watch> {
   await page.waitForLoadState('networkidle');
   w.loadMark = w.mark();
   return w;
+}
+
+const tempDirs: string[] = [];
+/** Synthetic large files are written to a temporary folder (Playwright limits in-memory buffers to 50 MB). Call cleanupTempFiles() when done. */
+export function tempFile(name: string, bytes: Buffer): string {
+  const dir = mkdtempSync(join(tmpdir(), 'bys-e2e-'));
+  tempDirs.push(dir);
+  const path = join(dir, name);
+  writeFileSync(path, bytes);
+  return path;
+}
+export function cleanupTempFiles(): void {
+  for (const d of tempDirs.splice(0)) rmSync(d, { recursive: true, force: true });
 }
 
 export async function chooseFile(page: Page, file: string | { name: string; mimeType: string; buffer: Buffer }): Promise<void> {

@@ -86,7 +86,7 @@ export function App({ client, urls: urlsProp }: Props) {
       return setView({ kind: 'error', error: { code: 'file-too-large', message: `This file is ${formatBytes(f.size)}. This tool reads files up to ${formatBytes(LIMITS.maxAnyFileBytes)} (images up to ${formatBytes(LIMITS.maxFileBytes.jpeg)}).` } });
     }
     setView({ kind: 'working', stage: 'reading', fraction: 0 });
-    setAnnounce('Reading the file.');
+    setAnnounce('');
     const job = client.analyse(f, { onProgress: (stage, fraction) => run.current === token && setView({ kind: 'working', stage, fraction }) });
     const out = await job.promise;
     if (run.current !== token) return; // superseded, cancelled or reset: ignore

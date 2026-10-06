@@ -19,7 +19,7 @@ interface Props {
 export function Progress({ stage, fraction, onCancel, label }: Props) {
   const pct = fraction === null ? null : Math.round(fraction * 100);
   return (
-    <section class="working" aria-live="polite" aria-busy="true">
+    <section class="working" aria-busy="true">
       <div class="scanline" aria-hidden="true" />
       <p role="status" class="working-text">
         {label ? `${label}: ` : ''}
