@@ -1,6 +1,7 @@
+import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { buildFingerprint, detectFormat, extensionOf } from '../src/core/detect';
-import { analyseBytes } from '../src/core/analyze';
+import { analyseBytes, sha256Hex } from '../src/core/analyze';
 import { fixture, outcomeOf } from './helpers';
 import { latin } from '../fixtures/lib/jpeg';
 
@@ -73,8 +74,10 @@ describe('extension and declared type comparison', () => {
     expect(buildFingerprint(1, 'a.jpe', 'image/jpeg', detectFormat(fixture('jpeg-clean.jpg')), null).extensionCheck).toBe('match');
   });
 
-  it('computes a SHA-256 that identifies bytes', async () => {
-    const out = await analyseBytes(new TextEncoder().encode('abc'), { name: 'a', type: '' });
-    expect(out.fingerprint?.sha256 ?? (out.supported ? out.report.fingerprint.sha256 : null)).toBe('ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
+  it('computes a SHA-256 that identifies bytes and matches an independent implementation', async () => {
+    expect(await sha256Hex(new TextEncoder().encode('abc'))).toBe('ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
+    const out = await outcomeOf('jpeg-clean.jpg');
+    if (!out.supported) throw new Error('unsupported');
+    expect(out.report.fingerprint.sha256).toBe(createHash('sha256').update(fixture('jpeg-clean.jpg')).digest('hex'));
   });
 });

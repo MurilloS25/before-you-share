@@ -195,7 +195,7 @@ describe('verification catches bad copies', () => {
     const res = await createCopy(original, rr, ['png-text']);
     const tampered = Uint8Array.from(res.output);
     // Flip a byte inside IDAT data and fix nothing else: CRC mismatch also makes the copy unsound.
-    tampered[60] ^= 0xff;
+    tampered[60] = (tampered[60] ?? 0) ^ 0xff;
     const v = await verifyCopy(original, await sha256Hex(original), r, tampered, ['png-text']);
     expect(v.allPassed).toBe(false);
     expect(v.checks.find((c) => c.id === 'picture-data')!.status).toBe('fail');
