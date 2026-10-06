@@ -38,10 +38,12 @@ printed as a `PERF` line by that test):
 | Longest main-thread stall while a 50 MiB slow PDF was being inspected in the worker | 10 ms |
 | 40 MiB PNG (one unknown chunk of random data) inspected, from choosing the file to the result | 947 ms |
 | 40 MiB JPEG made of 620 comment segments inspected (finding cap reached), choose file to result | 367 ms |
-| Presenting that 600-finding result (40 MiB JPEG at the finding cap): longest timer gap / longest Long Task on the main thread, from choosing the file until the result settled | 79 to 116 ms / 54 to 78 ms over four full runs (the earlier whole-session probe read about 531 to 714 ms before finding lists were bounded; the test limit is now 250 ms, it was 1,500 ms) |
-| Same screen: DOM nodes and rendered findings | about 306 nodes, 11 findings (10 plus the cap notice) instead of every finding |
-| User action "Show all 589 remaining" on that category: longest timer gap / Long Task | 324 to 479 ms / 322 to 466 ms over three runs (a deliberate action; the test limit is 1,000 ms) |
+| User action "Show all 589 remaining" inside the open report: longest timer gap / Long Task | 424 to 632 ms / 420 to 623 ms over runs this round (a deliberate action; the test limit is 1,000 ms). Earlier rounds measured 324 to 479 ms |
 | Same screen after "Show all": moving the pointer across 7 findings, longest Long Task | 0 ms (limit 100 ms) |
+| Page height of `jpeg-gps.jpg` at 1440 x 900: simple result / after the copy / technical report open (before this change about 4,970 / 7,170 px) | 1,254 / 2,072 / 4,849 px |
+| Same at 390 x 844 | 1,971 / 3,038 / 6,347 px |
+| Simple view DOM (600-finding file): nodes, rendered findings, longest timer gap | 62 nodes, 0 findings, 22 to 29 ms (the report is not built) |
+| User action "View full technical report" on that file: longest gap / Long Task, DOM nodes | 69 to 77 ms / 69 to 71 ms, 281 nodes (test limit 250 ms) |
 | Typical fixtures (kitchen-sink JPEG, kitchen-sink PNG, XMP PDF) | 178 ms, 63 ms, 216 ms |
 | Copy of a 30 MiB PNG built and verified | 977 ms |
 | Main-thread JS heap growth after three copy and reset cycles (worker and buffer memory are not measured) | 1 MiB |

@@ -23,6 +23,7 @@ Plain statements of what this tool does not do or cannot promise.
 - **Hash.** SHA-256 identifies bytes. It needs a secure browsing context (https or localhost).
 - **No dark theme.** Only a designed light theme ships.
 - **JFIF thumbnails** are removable only through "Other application segments" (the JFIF header is rewritten without them).
+- **Closed technical report.** The findings, evidence, SHA-256, file map and detailed coverage are not in the page until "View full technical report" is opened, so the browser's find-in-page (Ctrl+F) cannot find them before. The simple view summarises categories and always states how many areas were only partly checked. The experimental copy is still experimental: its verification covers only what this tool can detect, and other hidden information may remain.
 - **Large result lists.** A category with more than 12 findings shows the first 10 and a control to reveal 50 more or all the rest, so a
   600-finding result no longer blocks the page while it is drawn. Findings that are not shown yet are not in the page, so the browser's find-in-page
   cannot see them until they are revealed. The same holds for the contents of closed "Evidence and limits" sections, the file map and the mutation

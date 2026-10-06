@@ -101,3 +101,16 @@ block (categories, not findings; one primary action to the single copy panel wit
 detail (SHA-256, reported type, status legend, file map; evidence, manifest and the structural category are built only when opened),
 and bounded finding lists ("Show more", 10 first, everything still reachable). Gate: presenting the 600-finding result keeps the main
 thread under a 250 ms budget (measured in `e2e/performance.spec.ts`; numbers in `docs/LIMITS.md`). `maxFindings` and parser limits are unchanged.
+
+## Follow-up round: restructured results flow
+
+The second pass still left the technical findings dominating the page (about 4,970 px for the GPS JPEG, 7,170 px after the copy). The flow
+was restructured, not decorated: (1) the default view is the simple result (preview, "Before you share", coverage line, actions); (2)
+"Create experimental copy" is a real one-click action on the recommended groups of the single selection state, and "Choose what to remove"
+reveals the one options panel, closed until asked; (3) the full technical report is closed and not mounted until opened (find-in-page
+cannot see it before; documented); (4) the copy result is compact, with the ten checks, comparison and manifest folded. PDF and DOCX stay
+inspect-only with no copy action. No parser, limit, format, dependency or CSP change.
+
+Measured (desktop Edge, `jpeg-gps.jpg`): 1,254 px simple, 2,072 px after the copy, 4,849 px with the report open at 1440 x 900; 1,971 / 3,038 /
+6,347 px at 390 px. The simple view of the 600-finding file builds 62 nodes and no findings; opening the report takes about 70 ms. The copy is
+still experimental and its verification covers only what the tool can detect. Gates: all checks listed in `docs/HARNESS.md`.

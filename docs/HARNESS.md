@@ -23,7 +23,7 @@ Playwright's own Chromium if you have installed it.
 | `npm run build` | Typecheck then `vite build` into `dist/` | The static app builds |
 | `npm run audit:build` | Scan `dist/` for URLs, inline code, forbidden APIs, bundle budgets | No unexpected endpoint; PDF tooling is lazy and worker-only |
 | `npm run preview` | Serve `dist/` on 127.0.0.1:4173 with the security headers | The artefact tested and shown in acceptance |
-| `npm run test:e2e` | Playwright against the production build (builds first) | Flows, accessibility (axe), privacy (network and CSP), performance, and the results screen ("Before you share", focus jumps, Show more, 320/390/1440 px, 200% text, reduced motion) |
+| `npm run test:e2e` | Playwright against the production build (builds first) | Flows, accessibility (axe), privacy (network and CSP), performance, and the results flow (simple result, one-click copy, options panel, closed technical report, page heights, Show more, 320/390/1440 px, 200% text, reduced motion) |
 | `npm run check` | typecheck, `npm test`, `fixtures:check` | Fast pre-commit gate |
 
 ## Working loop

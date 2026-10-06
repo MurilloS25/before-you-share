@@ -9,14 +9,22 @@ and findings are annotations with evidence. It should feel like inspection equip
   hatching that marks inferred or unsupported marks on the file map).
 - **Type**: Source Serif 4 for reading text and headlines (calm, bookish), Barlow Semi Condensed for
   labels and data (technical, compact). Fonts are bundled. Line length stays under 80 characters.
-- **First answer**: below the file's name and size sits a plain "Before you share" block. It summarises *categories* (an exact
-  location, names and identifiers, dates, device and software, descriptions, embedded content, scripts or macros), says that common data
-  is not automatically a problem, and offers one primary action ("Review copy options") that scrolls to the single copy panel and moves focus to its
-  heading. It holds no checkboxes (one selection state only), has no score, and never says a file is safe, clean or anonymous. PDF and DOCX
-  get an honest sentence instead of an action.
-- **Progressive disclosure**: SHA-256, reported type, status legend and the file map are folded under named summaries. Evidence, the map, the
-  manifest and the structural category build their content only when opened. Coverage ("What this tool did not fully check") and the findings
-  themselves are never folded. Internal links move focus, not only scroll. Nothing is sticky, so nothing can cover content at high zoom.
+- **First answer**: the default view is the simple result: the preview beside a plain "Before you share" block (stacked on mobile). It
+  summarises *categories* (an exact location, names and identifiers, dates, device and software, descriptions, embedded content, scripts or
+  macros), says that common data is not automatically a problem, always shows a coverage line ("5 areas were only partly checked or not
+  checked", with a link), and offers: the primary "Create experimental copy" (uses the recommended groups of the single selection state and
+  names them), "Choose what to remove" (reveals the one options panel, which is closed until then, and moves focus to it) and "View full
+  technical report". It holds no checkboxes (one selection state only), has no score, and never says a file is safe, clean or anonymous.
+  PDF and DOCX get an honest inspect-only sentence and no copy action; JPEG/PNG with nothing removable say so and offer only the report.
+- **Technical report**: a closed section that is not mounted while closed (findings, status legend, evidence, file map, SHA-256, detailed
+  coverage). Opening moves focus to its heading, closing returns it to the button. Because it is not in the page, the browser's find-in-page
+  does not see it until opened.
+- **Copy result**: verdict, original and copy side by side (stacked on mobile), download, what is no longer detected and what remains
+  detected, and the reminder to open the copy and keep the original. The ten checks, comparison table and manifest are folded (open
+  automatically if a check failed).
+- **Progressive disclosure**: the technical report is closed and unmounted by default; inside it SHA-256, status legend, file map, evidence
+  and the structural category are folded again. Coverage is summarised on the simple view and detailed in the report. Internal links move
+  focus, not only scroll. Nothing is sticky, so nothing can cover content at high zoom.
 - **Memorable element**: the **file map**, a strip chart where each lane is a category and each mark is a
   finding at its real byte position, answering "where was it?" at a glance. The text list remains the
   source of truth.

@@ -24,9 +24,11 @@ deployed.
 | PDF | Bounded (Info, XMP, IDs, pages, annotations, forms, attachments, JavaScript and action indicators, layers, signatures flag, revisions) | **No**: inspection only |
 | DOCX | Bounded, inspection only (properties, comments and tracked changes counted, embedded parts, external references, macro indicator, ZIP safety checks) | **No**: inspection only |
 
-The results screen starts with a plain "Before you share" summary by category (no score, no verdict) and, for JPEG and PNG, a button
-that jumps to the experimental copy options. Technical detail (SHA-256, file map, evidence, manifest) is folded until opened, and long
-finding lists show 10 first, with a control to reveal 50 more or all the rest.
+The result is a short page: the file's preview, a plain "Before you share" summary by category (no score, no verdict) and the next
+step. For JPEG and PNG with something removable, "Create experimental copy" makes a separate copy with the recommended choices in one
+click, and "Choose what to remove" opens the one options panel. PDF and DOCX are inspection only and say so. The full findings, evidence,
+SHA-256, file map and detailed coverage live in a technical report that is closed, and not even built, until you open it. In the copy
+result the ten checks, the comparison table and the manifest are folded.
 
 Details and honest coverage limits: [docs/FORMATS.md](docs/FORMATS.md) and
 [docs/LIMITATIONS.md](docs/LIMITATIONS.md).
