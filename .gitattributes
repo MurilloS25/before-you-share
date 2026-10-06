@@ -15,3 +15,9 @@
 *.webp binary
 *.woff binary
 *.woff2 binary
+
+# Fixtures are byte-exact: never convert line endings.
+fixtures/generated/* -text
+*.pdf binary
+*.gif binary
+*.bin binary
