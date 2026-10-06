@@ -1,6 +1,7 @@
 import { useState } from 'preact/hooks';
 import type { AnalysisReport, Finding, MutationManifest, VerificationResult } from '../../core/types';
 import { formatBytes, plural } from '../lib/format';
+import { LazyDetails, ShowMore } from './Disclosure';
 
 export interface CopyResult {
   url: string;
@@ -119,14 +120,20 @@ export function VerificationView({ report, originalUrl, copy, onDownload }: Prop
           {removed.length === 0 ? (
             <p class="fine-print">None.</p>
           ) : (
-            <ul class="plain-list bullet">
-              {removed.map((f) => (
+            <ShowMore
+              items={removed}
+              id="list-removed"
+              listClass="plain-list bullet"
+              noun={['finding', 'findings']}
+              threshold={25}
+              initial={20}
+              render={(f) => (
                 <li key={f.id}>
                   {f.label}
                   {f.value ? <span class="user-text">: {f.value}</span> : null}
                 </li>
-              ))}
-            </ul>
+              )}
+            />
           )}
         </div>
         <div>
@@ -134,21 +141,26 @@ export function VerificationView({ report, originalUrl, copy, onDownload }: Prop
           {remaining.length === 0 ? (
             <p class="fine-print">None of the fields this tool reads.</p>
           ) : (
-            <ul class="plain-list bullet">
-              {remaining.map((f) => (
+            <ShowMore
+              items={remaining}
+              id="list-remaining"
+              listClass="plain-list bullet"
+              noun={['finding', 'findings']}
+              threshold={25}
+              initial={20}
+              render={(f) => (
                 <li key={f.id}>
                   {f.label}
                   {f.value ? <span class="user-text">: {f.value}</span> : null}
                 </li>
-              ))}
-            </ul>
+              )}
+            />
           )}
         </div>
       </div>
       {v.newFindings.length > 0 && <p class="verdict" data-ok="false">The copy contains {plural(v.newFindings.length, 'finding')} that were not in the original.</p>}
 
-      <details class="manifest">
-        <summary>Mutation manifest ({plural(copy.manifest.entries.length, 'entry', 'entries')})</summary>
+      <LazyDetails class="manifest" summary={`Mutation manifest (${plural(copy.manifest.entries.length, 'entry', 'entries')})`}>
         <div class="table-scroll" tabIndex={0} role="region" aria-label="Mutation manifest table, scrolls sideways on narrow screens">
         <table>
           <caption>Every change and every deliberate non-change, by byte range in the original</caption>
@@ -174,7 +186,7 @@ export function VerificationView({ report, originalUrl, copy, onDownload }: Prop
           </tbody>
         </table>
         </div>
-      </details>
+      </LazyDetails>
 
       <div class="download">
         <h3 class="subhead">Download</h3>

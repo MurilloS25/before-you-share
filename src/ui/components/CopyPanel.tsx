@@ -92,18 +92,22 @@ export function CopyPanel({ report, groups, selected, onToggle, onCreate, busy }
         </div>
       </div>
       <div class="plan-more">
-        <h3 class="plan-title">Always kept</h3>
-        <ul class="plain-list bullet">
-          {POLICY[format].preserved.map((t) => (
-            <li key={t}>{t}</li>
-          ))}
-        </ul>
-        <h3 class="plan-title">May change</h3>
-        <ul class="plain-list bullet">
-          {POLICY[format].mayChange.map((t) => (
-            <li key={t}>{t}</li>
-          ))}
-        </ul>
+        <div>
+          <h3 class="plan-title">Always kept</h3>
+          <ul class="plain-list bullet">
+            {POLICY[format].preserved.map((t) => (
+              <li key={t}>{t}</li>
+            ))}
+          </ul>
+        </div>
+        <div>
+          <h3 class="plan-title">May change</h3>
+          <ul class="plain-list bullet">
+            {POLICY[format].mayChange.map((t) => (
+              <li key={t}>{t}</li>
+            ))}
+          </ul>
+        </div>
         <p class="fine-print">
           The copy is named after the original file name with ".experimental-copy" added, so the stem of the name is kept. Rename it if the name itself is
           sensitive. Other hidden information may remain after any removal. Open and check the copy before sharing it.

@@ -23,7 +23,7 @@ export function Identification({ name, fingerprint, report, detection }: Props) 
       ? 'Inspection only'
       : report.copyRefusal
         ? 'Inspection only for this file'
-        : 'Inspection and an experimental copy'
+        : 'Inspection and experimental copy'
     : 'Not supported';
   return (
     <section class="identification" aria-labelledby="ident-h">
@@ -49,6 +49,10 @@ export function Identification({ name, fingerprint, report, detection }: Props) 
           <dt>File name</dt>
           <dd class="user-text">{displayText(name, 200)}</dd>
         </div>
+      </dl>
+      <details class="tech-details">
+        <summary>Technical details: extension, reported type, SHA-256</summary>
+        <dl class="facts">
         <div>
           <dt>Extension</dt>
           <dd>{fingerprint.extension ? `.${fingerprint.extension}: ${CHECK[fingerprint.extensionCheck]}` : 'None'}</dd>
@@ -66,8 +70,9 @@ export function Identification({ name, fingerprint, report, detection }: Props) 
             </dd>
           </div>
         )}
-      </dl>
-      <p class="fine-print">The name and these values are held in memory for this tab only and are not stored or logged.</p>
+        </dl>
+        <p class="fine-print">The name and these values are held in memory for this tab only and are not stored or logged.</p>
+      </details>
     </section>
   );
 }

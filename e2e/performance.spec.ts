@@ -6,23 +6,35 @@ import { chooseFile, cleanupTempFiles, expectClean, fx, openApp, tempFile, waitF
 
 test.afterEach(() => cleanupTempFiles());
 
-/** Installs a probe that records the longest gap between timer ticks on the page's main thread. */
+/**
+ * Installs a probe on the page's main thread: the longest gap between 16 ms timer ticks and the longest Long Task
+ * (any task over 50 ms). Reading them gives the worst blocking seen since installation.
+ */
 async function installLagProbe(page: Page): Promise<void> {
   await page.evaluate(() => {
-    const w = window as unknown as { __lag: { max: number; last: number; id: number } };
-    w.__lag = { max: 0, last: performance.now(), id: 0 };
+    const w = window as unknown as { __lag: { max: number; last: number; id: number; long: number; obs: PerformanceObserver | null } };
+    w.__lag = { max: 0, last: performance.now(), id: 0, long: 0, obs: null };
     w.__lag.id = window.setInterval(() => {
       const now = performance.now();
       w.__lag.max = Math.max(w.__lag.max, now - w.__lag.last - 16);
       w.__lag.last = now;
     }, 16);
+    try {
+      w.__lag.obs = new PerformanceObserver((list) => {
+        for (const e of list.getEntries()) w.__lag.long = Math.max(w.__lag.long, e.duration);
+      });
+      w.__lag.obs.observe({ type: 'longtask', buffered: false });
+    } catch {
+      /* Long Tasks unsupported: the timer probe still applies */
+    }
   });
 }
-async function readLag(page: Page): Promise<number> {
+async function readLag(page: Page): Promise<{ gap: number; longTask: number }> {
   return page.evaluate(() => {
-    const w = window as unknown as { __lag: { max: number; id: number } };
+    const w = window as unknown as { __lag: { max: number; id: number; long: number; obs: PerformanceObserver | null } };
     clearInterval(w.__lag.id);
-    return Math.round(w.__lag.max);
+    w.__lag.obs?.disconnect();
+    return { gap: Math.round(w.__lag.max), longTask: Math.round(w.__lag.long) };
   });
 }
 
@@ -48,36 +60,68 @@ test('main thread stays responsive while a slow file is inspected', async ({ pag
   measurements.cancelLatencyMs = Date.now() - t1;
   measurements.slowPdfSecondsUntilCancel = Math.round((Date.now() - t0) / 100) / 10;
   const lag = await readLag(page);
-  measurements.mainThreadMaxLagMs = lag;
-  expect(lag).toBeLessThan(250);
+  measurements.mainThreadMaxLagMs = lag.gap;
+  expect(lag.gap).toBeLessThan(250);
   expect(measurements.cancelLatencyMs).toBeLessThan(1500);
   expectClean(w);
 });
 
-test('worker timing for representative large files within the limits', async ({ page }) => {
+test('worker timing for a 40 MiB PNG within the limits', async ({ page }) => {
   await openApp(page);
-  // 40 MiB PNG whose IDAT is incompressible: every chunk is length-checked and CRC-verified.
+  // 40 MiB PNG whose unknown chunk is incompressible: every chunk is length-checked and CRC-verified.
   const png = buildPng({ before: [chunk('zzZz', randomBytes(40 * 1024 * 1024))] });
-  await installLagProbe(page);
-  let t = Date.now();
+  const t = Date.now();
   await chooseFile(page, tempFile('big.png', Buffer.from(png)));
   await waitForResult(page);
   measurements.png40MiBInspectMs = Date.now() - t;
   expect(measurements.png40MiBInspectMs).toBeLessThan(15_000);
   await expect(page.getByRole('heading', { name: 'Unrecognised chunk' })).toBeVisible();
-  await page.getByRole('button', { name: 'Clear and start over' }).first().click();
+});
 
-  // 40 MiB JPEG made of 64 KiB comment segments: exercises the segment cap and the finding cap in a real browser.
+/**
+ * Presentation phase of the largest result the parser can produce: 40 MiB of 64 KiB comment segments reach the
+ * 600-finding cap. The file is read and parsed in the worker; what is measured here is what the page does with the
+ * result (building the screen), as the longest main-thread blocking from choosing the file until the result has
+ * been shown and has settled. The limit is deliberately tight: it was 1,500 ms before the list was bounded.
+ */
+test('presenting a 600-finding result keeps the main thread free (250 ms budget)', async ({ page }) => {
+  await openApp(page);
   const segs = Array.from({ length: 620 }, () => commentSegment('x'.repeat(65000)));
-  const jpeg = insertSegments(baseJpeg(), segs);
-  t = Date.now();
-  await chooseFile(page, tempFile('big.jpg', Buffer.from(cat(jpeg))));
+  const jpeg = Buffer.from(cat(insertSegments(baseJpeg(), segs)));
+  const file = tempFile('big.jpg', jpeg);
+  await installLagProbe(page);
+  const t = Date.now();
+  await chooseFile(page, file);
   await waitForResult(page);
   measurements.jpeg40MiBInspectMs = Date.now() - t;
   expect(measurements.jpeg40MiBInspectMs).toBeLessThan(15_000);
-  await expect(page.getByText('Further findings were not listed')).toBeVisible();
-  measurements.mainThreadMaxLagDuringImagesMs = await readLag(page);
-  expect(measurements.mainThreadMaxLagDuringImagesMs).toBeLessThan(1500);
+  await expect(page.getByRole('heading', { name: 'Further findings were not listed' })).toBeVisible();
+  // let layout, image decoding and effects settle; this is a wait for the browser, not a way to hide the render
+  await page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
+  await page.waitForTimeout(400);
+  const lag = await readLag(page);
+  measurements.presentationMaxGapMs = lag.gap;
+  measurements.presentationLongTaskMs = lag.longTask;
+  expect(lag.gap).toBeLessThan(250);
+  expect(lag.longTask).toBeLessThan(250);
+
+  // The screen is bounded, and everything the parser kept is still reachable.
+  const nodes = await page.evaluate(() => document.querySelectorAll('*').length);
+  const rendered = await page.locator('li.finding').count();
+  measurements.presentationDomNodes = nodes;
+  measurements.presentationRenderedFindings = rendered;
+  expect(rendered).toBeLessThan(40);
+  expect(nodes).toBeLessThan(1500);
+  await expect(page.getByText(/Showing 10 of 599 findings/)).toBeVisible();
+
+  // Revealing everything is an explicit user action; it is measured too and must stay interactive.
+  await installLagProbe(page);
+  await page.getByRole('button', { name: /Show all 589 remaining/ }).click();
+  await expect(page.locator('li.finding')).toHaveCount(599 + (rendered - 10));
+  const reveal = await readLag(page);
+  measurements.revealAllMaxGapMs = reveal.gap;
+  measurements.revealAllLongTaskMs = reveal.longTask;
+  expect(reveal.longTask).toBeLessThan(1000);
 });
 
 test('typical files finish quickly', async ({ page }) => {

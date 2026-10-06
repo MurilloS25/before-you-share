@@ -13,8 +13,10 @@ import { Identification } from './components/Identification';
 import { FileMap } from './components/FileMap';
 import { CoverageList, FindingsByCategory } from './components/Findings';
 import { CopyPanel } from './components/CopyPanel';
+import { BeforeYouShare } from './components/BeforeYouShare';
+import { LazyDetails } from './components/Disclosure';
 import { VerificationView, type CopyResult } from './components/Verification';
-import { downloadName, formatBytes, isImageFormat, plural, CATEGORY_LABEL, STATUS_HELP, STATUS_LABEL } from './lib/format';
+import { downloadName, formatBytes, isImageFormat, plural, STATUS_HELP, STATUS_LABEL } from './lib/format';
 import { MIME, ObjectUrlRegistry } from './lib/urls';
 
 interface Props {
@@ -355,7 +357,6 @@ function ResultView({ view, busy, setView, actions }: ResultProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const groups = removalGroupsFor(report);
   const notable = report.findings.filter((f) => f.category !== 'structural');
-  const cats = new Set(notable.map((f) => f.category));
   const notRead = report.coverage.filter((c) => c.state !== 'inspected').length;
 
   return (
@@ -367,11 +368,13 @@ function ResultView({ view, busy, setView, actions }: ResultProps) {
       <p class="summary">
         {notable.length === 0
           ? 'Nothing notable was found in the areas this tool reads.'
-          : `${plural(notable.length, 'item')} found across ${[...cats].map((c) => CATEGORY_LABEL[c].toLowerCase()).join(', ')}.`}{' '}
-        {notRead > 0 ? `${plural(notRead, 'area')} could not be fully checked, listed at the end.` : ''}
+          : `${plural(notable.length, 'item')} found, grouped below by kind.`}{' '}
+        {notRead > 0 ? `${plural(notRead, 'area')} could not be fully checked; see “What this tool did not fully check”.` : ''}
       </p>
 
       <Identification name={view.name} fingerprint={report.fingerprint} report={report} />
+
+      <BeforeYouShare report={report} groups={groups} />
 
       {report.format === 'pdf' ? (
         <PdfPreviewBox state={view.pdfPreview} onShow={actions.showPdfPreview} busy={busy} />
@@ -388,8 +391,6 @@ function ResultView({ view, busy, setView, actions }: ResultProps) {
         )
       )}
 
-      <FileMap findings={report.findings} fileSize={report.fingerprint.size} activeId={activeId} />
-
       <section aria-labelledby="findings-h" class="findings-section">
         <h2 id="findings-h" class="section-title">
           Findings
@@ -397,14 +398,20 @@ function ResultView({ view, busy, setView, actions }: ResultProps) {
         <p class="legend">
           Each finding says where it was read from and how sure the tool is. <em>Suspicious</em> means unusual or inconsistent, not harmful. Open “Evidence and limits” on any item for the location and caveats.
         </p>
-        <dl class="status-legend">
-          {(['verified', 'inferred', 'suspicious', 'unsupported', 'unavailable'] as const).map((s) => (
-            <div key={s}>
-              <dt>{STATUS_LABEL[s]}</dt>
-              <dd>{STATUS_HELP[s]}</dd>
-            </div>
-          ))}
-        </dl>
+        <details class="tech-details">
+          <summary>How to read the status labels</summary>
+          <dl class="status-legend">
+            {(['verified', 'inferred', 'suspicious', 'unsupported', 'unavailable'] as const).map((s) => (
+              <div key={s}>
+                <dt>{STATUS_LABEL[s]}</dt>
+                <dd>{STATUS_HELP[s]}</dd>
+              </div>
+            ))}
+          </dl>
+        </details>
+        <LazyDetails class="tech-details" summary="Where findings sit in the file (map of byte positions)">
+          <FileMap findings={report.findings} fileSize={report.fingerprint.size} activeId={activeId} />
+        </LazyDetails>
         <FindingsByCategory findings={report.findings} activeId={activeId} onActive={setActiveId} />
       </section>
 

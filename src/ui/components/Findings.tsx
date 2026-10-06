@@ -1,5 +1,7 @@
 import { CATEGORY_ORDER, type Category, type CoverageItem, type Finding } from '../../core/types';
 import { CATEGORY_HINT, CATEGORY_LABEL, STATUS_HELP, STATUS_LABEL, describeLocation, plural } from '../lib/format';
+import { goTo } from '../lib/nav';
+import { LazyDetails, ShowMore } from './Disclosure';
 
 const STATUS_MARK: Record<Finding['status'], string> = {
   verified: '•',
@@ -20,26 +22,18 @@ export function StatusLabel({ status }: { status: Finding['status'] }) {
   );
 }
 
-function FindingItem({ f, onActive, active }: { f: Finding; onActive: (id: string | null) => void; active: boolean }) {
+function FindingItem({ f, active }: { f: Finding; active: boolean }) {
   const removal = f.transformation === 'removable' ? 'The experimental copy can remove this.' : f.transformation === 'preserved' ? 'The experimental copy keeps this on purpose.' : 'This tool cannot remove this.';
+  // Hover and focus tracking is delegated to the list (see FindingsByCategory): no handlers per item.
   return (
-    <li
-      class="finding"
-      data-status={f.status}
-      data-active={active || undefined}
-      onMouseEnter={() => onActive(f.id)}
-      onMouseLeave={() => onActive(null)}
-      onFocusIn={() => onActive(f.id)}
-      onFocusOut={() => onActive(null)}
-    >
+    <li class="finding" data-id={f.id} data-status={f.status} data-active={active || undefined}>
       <div class="finding-head">
         <h3 class="finding-label">{f.label}</h3>
         <StatusLabel status={f.status} />
       </div>
       {f.value !== null && f.value !== '' && <p class="finding-value">{f.value}</p>}
       <p class="finding-why">{f.privacyExplanation}</p>
-      <details>
-        <summary>Evidence and limits</summary>
+      <LazyDetails summary="Evidence and limits">
         <dl class="evidence">
           <dt>Source</dt>
           <dd>{f.source}</dd>
@@ -66,7 +60,7 @@ function FindingItem({ f, onActive, active }: { f: Finding; onActive: (id: strin
             </>
           )}
         </dl>
-      </details>
+      </LazyDetails>
     </li>
   );
 }
@@ -76,6 +70,8 @@ interface Props {
   activeId: string | null;
   onActive: (id: string | null) => void;
 }
+
+const findingId = (e: Event): string | null => ((e.target as HTMLElement | null)?.closest?.('li.finding') as HTMLElement | null)?.dataset['id'] ?? null;
 
 export function FindingsByCategory({ findings, activeId, onActive }: Props) {
   const groups = CATEGORY_ORDER.map((c) => ({ cat: c, items: findings.filter((f) => f.category === c) })).filter((g) => g.items.length > 0);
@@ -88,7 +84,13 @@ export function FindingsByCategory({ findings, activeId, onActive }: Props) {
         <ul class="plain-list inline-list">
           {groups.map((g) => (
             <li key={g.cat}>
-              <a href={`#cat-${g.cat}`}>
+              <a
+                href={`#cat-h-${g.cat}`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  goTo(`cat-h-${g.cat}`);
+                }}
+              >
                 {CATEGORY_LABEL[g.cat]} <span class="count">{g.items.length}</span>
               </a>
             </li>
@@ -97,31 +99,27 @@ export function FindingsByCategory({ findings, activeId, onActive }: Props) {
       </nav>
       {groups.map(({ cat, items }) => {
         const list = (
-          <ul class="finding-list">
-            {items.map((f) => (
-              <FindingItem key={f.id} f={f} onActive={onActive} active={activeId === f.id} />
-            ))}
-          </ul>
+          <div
+            class="finding-group"
+            onMouseOver={(e) => onActive(findingId(e))}
+            onMouseLeave={() => onActive(null)}
+            onFocusIn={(e) => onActive(findingId(e))}
+            onFocusOut={() => onActive(null)}
+          >
+            <ShowMore items={items} id={`list-${cat}`} listClass="finding-list" noun={['finding', 'findings']} render={(f) => <FindingItem key={f.id} f={f} active={activeId === f.id} />} />
+          </div>
         );
         return (
           <section class="category" id={`cat-${cat}`} key={cat} aria-labelledby={`cat-h-${cat}`} data-category={cat}>
+            <h2 id={`cat-h-${cat}`} class="category-title">
+              {CATEGORY_LABEL[cat]} <span class="count">{items.length}</span>
+            </h2>
             {cat === 'structural' ? (
-              <>
-                <h2 id={`cat-h-${cat}`} class="category-title">
-                  {CATEGORY_LABEL[cat]} <span class="count">{items.length}</span>
-                </h2>
-                <details open={items.some((f) => f.status !== 'verified' || f.code === 'file.type-mismatch') || undefined}>
-                  <summary>
-                    Show {CATEGORY_LABEL[cat].toLowerCase()} items. {CATEGORY_HINT[cat]}
-                  </summary>
-                  {list}
-                </details>
-              </>
+              <LazyDetails summary={`Show ${CATEGORY_LABEL[cat].toLowerCase()} items. ${CATEGORY_HINT[cat]}`} open={items.some((f) => f.status !== 'verified' || f.code === 'file.type-mismatch')}>
+                {list}
+              </LazyDetails>
             ) : (
               <>
-                <h2 id={`cat-h-${cat}`} class="category-title">
-                  {CATEGORY_LABEL[cat]} <span class="count">{items.length}</span>
-                </h2>
                 <p class="category-hint">{CATEGORY_HINT[cat as Category]}</p>
                 {list}
               </>

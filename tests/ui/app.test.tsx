@@ -50,6 +50,13 @@ function fakeClient() {
 const file = (name = 'a.jpg', bytes: Uint8Array = fixture('jpeg-clean.jpg'), type = 'image/jpeg') => new File([bytes as BlobPart], name, { type });
 const analysisOf = (report: AnalysisReport): JobOutcome => ({ ok: true, payload: { kind: 'analysis', supported: true, report } });
 
+/** Open a lazy disclosure the way the browser does: set `open` and fire the toggle event. */
+function openDetails(el: Element | null): void {
+  const d = el as HTMLDetailsElement;
+  d.open = true;
+  fireEvent(d, new Event('toggle'));
+}
+
 let created: string[] = [];
 let revoked: string[] = [];
 beforeEach(() => {
@@ -201,6 +208,9 @@ describe('inspection result', () => {
     expect(within(gps).getByText('Verified')).toBeTruthy();
     expect(within(gps).getByText(/Coordinates can point to where the photo was taken/)).toBeTruthy();
     const evidence = within(gps).getByText('Evidence and limits').closest('details')!;
+    expect(evidence.querySelector('dl.evidence')).toBeNull(); // not built until opened
+    openDetails(evidence);
+    await waitFor(() => expect(evidence.querySelector('dl.evidence')).not.toBeNull());
     expect(evidence.textContent).toContain('JPEG APP1 Exif');
     expect(evidence.textContent).toMatch(/Bytes [\d,]+ to [\d,]+/);
     expect(evidence.textContent).toContain('The experimental copy can remove this.');
@@ -220,8 +230,9 @@ describe('inspection result', () => {
   it('draws a file map lane per located category and keeps the textual list as the source of truth', async () => {
     const report = await analyseFixture('jpeg-kitchen-sink.jpg');
     await open(file('kitchen.jpg', fixture('jpeg-kitchen-sink.jpg')), report);
-    const lanes = document.querySelectorAll('.lane');
-    expect(lanes.length).toBeGreaterThan(3);
+    expect(document.querySelectorAll('.lane').length).toBe(0); // the map is built when its section is opened
+    openDetails(screen.getByText(/Where findings sit in the file/).closest('details'));
+    await waitFor(() => expect(document.querySelectorAll('.lane').length).toBeGreaterThan(3));
     for (const t of document.querySelectorAll<HTMLElement>('.tick')) {
       const left = parseFloat(t.style.left);
       const width = parseFloat(t.style.width);
@@ -267,6 +278,126 @@ describe('DOCX results', () => {
     expect(screen.getByText(/No preview is shown for Word documents/)).toBeTruthy();
     expect(document.querySelector('img')).toBeNull();
     expect(created.length).toBe(0); // no object URL is created for a document
+  });
+});
+
+describe('"Before you share" block', () => {
+  beforeEach(() => {
+    Element.prototype.scrollIntoView = vi.fn();
+  });
+
+  it('says plainly that a photo contains an exact location, without scoring or verdicts', async () => {
+    const report = await analyseFixture('jpeg-gps.jpg');
+    await open(file('g.jpg', fixture('jpeg-gps.jpg')), report);
+    const block = document.getElementById('before-share')!;
+    expect(within(block).getByRole('heading', { level: 2, name: 'Before you share' })).toBeTruthy();
+    expect(within(block).getByText('An exact location')).toBeTruthy();
+    expect(within(block).getByText(/GPS coordinates that can point to where it was taken/)).toBeTruthy();
+    expect(block.textContent).toMatch(/Common data is not automatically a problem, and other hidden information may remain/);
+    expect(block.textContent).not.toMatch(/score|risk|safe|clean|anonymous|danger|leak/i);
+    expect(block.textContent).not.toContain('0.250000'); // the coordinates stay in the evidence, not in the summary
+  });
+
+  it('summarises author, device, dates, comments, embedded content and active features by category', async () => {
+    const report = await analyseFixture('jpeg-kitchen-sink.jpg');
+    await open(file('k.jpg', fixture('jpeg-kitchen-sink.jpg')), report);
+    const block = document.getElementById('before-share')!;
+    for (const h of ['Names and identifiers', 'Dates and times', 'Device and software', 'Descriptions and properties', 'Embedded content']) expect(within(block).getByText(h)).toBeTruthy();
+    expect(block.textContent).toMatch(/embedded thumbnail/i);
+    expect(block.textContent).toMatch(/camera or device maker/i);
+    cleanup();
+    const pdf = await analyseFixture('pdf-javascript.pdf');
+    await open(file('j.pdf', fixture('pdf-javascript.pdf'), 'application/pdf'), pdf);
+    expect(within(document.getElementById('before-share')!).getByText('Scripts, actions or macros')).toBeTruthy();
+    expect(document.getElementById('before-share')!.textContent).toMatch(/never runs them/);
+  });
+
+  it('offers the copy action for JPEG and PNG with removable groups and moves scroll and focus to the single copy panel', async () => {
+    const report = await analyseFixture('png-kitchen-sink.png');
+    await open(file('p.png', fixture('png-kitchen-sink.png'), 'image/png'), report);
+    const block = document.getElementById('before-share')!;
+    expect(within(block).getByText(/An experimental copy can leave out/)).toBeTruthy();
+    const checkboxesBefore = document.querySelectorAll('input[type=checkbox]').length;
+    expect(within(block).queryAllByRole('checkbox')).toHaveLength(0); // no second form
+    fireEvent.click(within(block).getByRole('button', { name: 'Review copy options' }));
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
+    const heading = document.getElementById('copy-h')!;
+    expect(document.activeElement).toBe(heading);
+    expect(heading.getAttribute('tabindex')).toBe('-1');
+    expect(document.querySelectorAll('input[type=checkbox]').length).toBe(checkboxesBefore); // still exactly one selection state
+  });
+
+  it('keeps one selection: toggling in the panel changes what the block says it can leave out only through the same groups', async () => {
+    const report = await analyseFixture('jpeg-kitchen-sink.jpg');
+    await open(file('k.jpg', fixture('jpeg-kitchen-sink.jpg')), report);
+    const boxes = screen.getAllByRole('checkbox') as HTMLInputElement[];
+    expect(boxes.length).toBe(removalGroupsFor(report).length);
+    fireEvent.click(boxes[0]!);
+    expect(boxes[0]!.checked).toBe(false);
+  });
+
+  it('PDF and DOCX explain that they are inspection-only and show no copy action', async () => {
+    for (const [name, type, label] of [['pdf-basic.pdf', 'application/pdf', 'PDF'], ['docx-basic.docx', 'application/octet-stream', 'DOCX']] as const) {
+      const report = await analyseFixture(name);
+      await open(file(name, fixture(name), type), report);
+      const block = document.getElementById('before-share')!;
+      expect(block.textContent).toContain(`This tool can only inspect ${label} files. It does not offer a modified copy.`);
+      expect(within(block).queryByRole('button', { name: 'Review copy options' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Make experimental copy' })).toBeNull();
+      cleanup();
+    }
+  });
+
+  it('shows no action when nothing can be removed', async () => {
+    const report = await analyseFixture('jpeg-clean.jpg');
+    await open(file('c.jpg', fixture('jpeg-clean.jpg')), report);
+    const block = document.getElementById('before-share')!;
+    expect(block.textContent).toContain('Nothing that this tool can remove was found, so there is no copy to make.');
+    expect(within(block).queryByRole('button', { name: 'Review copy options' })).toBeNull();
+    expect(within(block).getByRole('button', { name: 'What was not checked' })).toBeTruthy();
+  });
+
+  it('the other links move focus to their headings too', async () => {
+    const report = await analyseFixture('jpeg-kitchen-sink.jpg');
+    await open(file('k.jpg', fixture('jpeg-kitchen-sink.jpg')), report);
+    const block = document.getElementById('before-share')!;
+    fireEvent.click(within(block).getByRole('button', { name: 'What was not checked' }));
+    expect(document.activeElement?.id).toBe('coverage-h');
+    fireEvent.click(within(block).getByRole('button', { name: 'Review all findings' }));
+    expect(document.activeElement?.id).toBe('findings-h');
+    fireEvent.click(within(block).getAllByRole('button', { name: /^See .* findings$/ })[0]!);
+    expect(document.activeElement?.id).toMatch(/^cat-h-/);
+    // category navigation links move focus as well, not only scroll
+    const link = screen.getByRole('navigation', { name: 'Jump to a category' }).querySelector('a')!;
+    fireEvent.click(link);
+    expect(document.activeElement?.id).toMatch(/^cat-h-/);
+  });
+});
+
+describe('progressive disclosure', () => {
+  it('keeps technical detail available but folded: SHA-256, reported type, status legend and the file map', async () => {
+    const report = await analyseFixture('jpeg-gps.jpg');
+    await open(file('g.jpg', fixture('jpeg-gps.jpg')), report);
+    const sha = document.querySelector('.hash')!;
+    expect((sha.closest('details') as HTMLDetailsElement).open).toBe(false);
+    expect(sha.textContent).toBe(report.fingerprint.sha256);
+    expect(screen.getByText(/Technical details: extension, reported type, SHA-256/)).toBeTruthy();
+    const legend = screen.getByText('How to read the status labels').closest('details') as HTMLDetailsElement;
+    expect(legend.open).toBe(false);
+    // coverage and its warnings are never folded
+    expect(screen.getByRole('heading', { name: 'What this tool did not fully check' })).toBeTruthy();
+    expect(document.querySelector('.coverage')!.closest('details')).toBeNull();
+    // the findings themselves stay visible
+    expect(screen.getByText('GPS position').closest('details')).toBeNull();
+  });
+
+  it('does not mount the items of a closed structural category, and mounts them when it is opened', async () => {
+    const report = await analyseFixture('jpeg-clean.jpg');
+    await open(file('c.jpg', fixture('jpeg-clean.jpg')), report);
+    const section = document.querySelector('[data-category="structural"]')!;
+    expect(section.querySelectorAll('li.finding').length).toBe(0);
+    openDetails(section.querySelector('details'));
+    await waitFor(() => expect(section.querySelectorAll('li.finding').length).toBeGreaterThan(0));
   });
 });
 
@@ -340,8 +471,9 @@ describe('experimental copy', () => {
   it('shows a refusal reason instead of a copy option for damaged files', async () => {
     const report = await analyseFixture('jpeg-truncated.jpg');
     await open(file('t.jpg', fixture('jpeg-truncated.jpg')), report);
-    expect(screen.getByText(/No copy is offered for this file/)).toBeTruthy();
+    expect(screen.getAllByText(/No copy is offered for this file/).length).toBeGreaterThan(0);
     expect(screen.queryByRole('button', { name: 'Make experimental copy' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Review copy options' })).toBeNull(); // no misleading action
   });
 
   it('cancelling a copy returns to the inspection result', async () => {
