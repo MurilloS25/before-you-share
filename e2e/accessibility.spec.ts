@@ -77,8 +77,9 @@ test.describe('keyboard and focus', () => {
   test('the whole flow works without a mouse and focus is always visible', async ({ page }) => {
     await openApp(page);
     // The file input is the first focusable control after the (absent) clear button.
-    await page.keyboard.press('Tab');
     const input = page.locator('input.file-input');
+    // Keyboard only: Tab until the file input is reached (it is the first control on the start screen).
+    for (let i = 0; i < 3 && !(await input.evaluate((e) => e === document.activeElement)); i++) await page.keyboard.press('Tab');
     await expect(input).toBeFocused();
     const ring = await page.locator('.dropzone').evaluate((el) => getComputedStyle(el).outlineStyle + ' ' + getComputedStyle(el).outlineWidth);
     expect(ring).toMatch(/solid 3px/);

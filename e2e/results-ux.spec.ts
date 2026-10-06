@@ -33,7 +33,7 @@ test.describe('"Before you share"', () => {
     await waitForResult(page);
     const block = page.locator('#before-share');
     await expect(block.getByRole('heading', { level: 2, name: 'Before you share' })).toBeVisible();
-    await expect(block.getByText('An exact location')).toBeVisible();
+    await expect(block.getByText('An exact location', { exact: true })).toBeVisible();
     await expect(block.getByText(/GPS coordinates that can point to where it was taken/)).toBeVisible();
     await expect(block).not.toContainText(/score|risk|safe|clean|anonymous/i);
     // The block comes before the long findings list and well before the copy panel.
