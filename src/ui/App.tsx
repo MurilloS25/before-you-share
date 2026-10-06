@@ -10,13 +10,12 @@ import type { JobStage } from '../worker/protocol';
 import { DropZone } from './components/DropZone';
 import { Progress } from './components/Progress';
 import { Identification } from './components/Identification';
-import { FileMap } from './components/FileMap';
-import { CoverageList, FindingsByCategory } from './components/Findings';
 import { CopyPanel } from './components/CopyPanel';
 import { BeforeYouShare } from './components/BeforeYouShare';
-import { LazyDetails } from './components/Disclosure';
+import { TechnicalReport } from './components/TechnicalReport';
+import { goTo } from './lib/nav';
 import { VerificationView, type CopyResult } from './components/Verification';
-import { downloadName, formatBytes, isImageFormat, plural, STATUS_HELP, STATUS_LABEL } from './lib/format';
+import { downloadName, formatBytes, isImageFormat, plural } from './lib/format';
 import { MIME, ObjectUrlRegistry } from './lib/urls';
 
 interface Props {
@@ -192,7 +191,8 @@ export function App({ client, urls: urlsProp }: Props) {
     client.cancel();
     if (view.kind === 'result') setView({ ...view, copy: { kind: 'idle' } });
     setAnnounce('The copy was cancelled. The inspection result is still shown; you can make a copy again.');
-    queueMicrotask(() => document.getElementById('make-copy')?.focus());
+    // The options panel may not be drawn (one-click copy): fall back to the primary button, then to the summary heading.
+    queueMicrotask(() => (document.getElementById('make-copy') ?? document.getElementById('create-copy') ?? document.getElementById('before-share-h'))?.focus());
   };
 
   const toggleGroup = (id: string) => {
@@ -202,6 +202,13 @@ export function App({ client, urls: urlsProp }: Props) {
       setAnnounce('The selection changed, so the previous copy was discarded. Make a new copy to check it.');
     }
     setView({ ...view, selected: view.selected.includes(id) ? view.selected.filter((x) => x !== id) : [...view.selected, id], copy: { kind: 'idle' } });
+  };
+
+  const discardCopy = () => {
+    if (view.kind !== 'result' || view.copy.kind !== 'done') return;
+    urls.revoke(view.copy.result.url);
+    setAnnounce('The previous copy was discarded. Choose what to remove, then create a new copy.');
+    setView({ ...view, copy: { kind: 'idle' } });
   };
 
   const download = () => {
@@ -316,7 +323,7 @@ export function App({ client, urls: urlsProp }: Props) {
           </>
         )}
 
-        {view.kind === 'result' && <ResultView view={view} busy={busy} setView={setView} actions={{ makeCopy, cancelCopy, download, showPdfPreview, reset, toggleGroup }} />}
+        {view.kind === 'result' && <ResultView view={view} busy={busy} setView={setView} actions={{ makeCopy, cancelCopy, download, showPdfPreview, reset, toggleGroup, discardCopy }} />}
       </main>
 
       <footer class="footer">
@@ -349,15 +356,56 @@ interface ResultProps {
   view: Extract<View, { kind: 'result' }>;
   busy: boolean;
   setView: (v: View) => void;
-  actions: { makeCopy: () => void; cancelCopy: () => void; download: () => void; showPdfPreview: () => void; reset: () => void; toggleGroup: (id: string) => void };
+  actions: { makeCopy: () => void; cancelCopy: () => void; download: () => void; showPdfPreview: () => void; reset: () => void; toggleGroup: (id: string) => void; discardCopy: () => void };
 }
 
-function ResultView({ view, busy, setView, actions }: ResultProps) {
+function ResultView({ view, busy, actions }: ResultProps) {
   const { report } = view;
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const groups = removalGroupsFor(report);
+  const [optionsOpen, setOptionsOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [pending, setPending] = useState<string | null>(null);
+  const groups = useMemo(() => removalGroupsFor(report), [report]);
+  const image = isImageFormat(report.format);
+  const done = view.copy.kind === 'done' && image;
+  const building = view.copy.kind === 'building';
+  const canCopy = image && groups.length > 0 && !report.copyRefusal;
   const notable = report.findings.filter((f) => f.category !== 'structural');
-  const notRead = report.coverage.filter((c) => c.state !== 'inspected').length;
+
+  // Jumps requested by a button run after the target has been drawn, and move focus (not only scroll).
+  useEffect(() => {
+    // The target may not exist yet (the copy panel replaces the finished copy a moment later): keep waiting until it does.
+    if (pending && document.getElementById(pending)) {
+      goTo(pending);
+      setPending(null);
+    }
+  }, [pending, optionsOpen, reportOpen, done, building]);
+  // While a copy exists or is being built the options panel is not drawn; it comes back (still open) if the person changes the choice.
+
+  const openReport = (target?: string) => {
+    // Already open: the button still has to do something visible, so it takes the person to the report.
+    const was = reportOpen;
+    setReportOpen(true);
+    if (target) setPending(target);
+    else if (was) setPending('report-h');
+  };
+  const choose = () => {
+    setOptionsOpen(true);
+    setPending('copy-h');
+  };
+
+  const preview =
+    report.format === 'pdf' ? (
+      <PdfPreviewBox state={view.pdfPreview} onShow={actions.showPdfPreview} busy={busy} />
+    ) : report.format === 'docx' ? (
+      <p class="fine-print preview-note">No preview is shown for Word documents. The tool does not render them.</p>
+    ) : view.originalUrl ? (
+      <figure class="original-preview">
+        <img src={view.originalUrl} alt="The file as the browser displays it" decoding="async" />
+        <figcaption class="fine-print">Shown as an ordinary image, read from the file you selected in this tab. It is not uploaded.</figcaption>
+      </figure>
+    ) : (
+      <p class="fine-print preview-note">No preview is shown{report.structurallyUnsound ? ' because the file structure is damaged' : ' because the declared size is above what this tool decodes'}.</p>
+    );
 
   return (
     <>
@@ -366,65 +414,40 @@ function ResultView({ view, busy, setView, actions }: ResultProps) {
       </h1>
       {view.extraFiles > 0 && <p class="notice">Only the first file was opened. Choose the others one at a time.</p>}
       <p class="summary">
-        {notable.length === 0
-          ? 'Nothing notable was found in the areas this tool reads.'
-          : `${plural(notable.length, 'item')} found, grouped below by kind.`}{' '}
-        {notRead > 0 ? `${plural(notRead, 'area')} could not be fully checked; see “What this tool did not fully check”.` : ''}
+        {notable.length === 0 ? 'Nothing notable was found in the areas this tool reads.' : `${plural(notable.length, 'item')} found. The full list is in the technical report.`}
       </p>
 
-      <Identification name={view.name} fingerprint={report.fingerprint} report={report} />
+      {view.copy.kind === 'done' && image && <VerificationView report={report} originalUrl={view.originalUrl} copy={view.copy.result} onDownload={actions.download} />}
 
-      <BeforeYouShare report={report} groups={groups} />
+      <div class={done ? 'simple-grid simple-grid-after' : 'simple-grid'}>
+        {!done && <div class="simple-preview">{preview}</div>}
+        <BeforeYouShare
+          report={report}
+          name={view.name}
+          groups={groups}
+          selected={view.selected}
+          busy={busy}
+          copyDone={done}
+          optionsOpen={optionsOpen}
+          onCreate={actions.makeCopy}
+          onChoose={choose}
+          onOpenReport={openReport}
+          onDiscard={() => {
+            actions.discardCopy();
+            choose();
+          }}
+        />
+      </div>
 
-      {report.format === 'pdf' ? (
-        <PdfPreviewBox state={view.pdfPreview} onShow={actions.showPdfPreview} busy={busy} />
-      ) : report.format === 'docx' ? (
-        <p class="fine-print">No preview is shown for Word documents. The tool does not render them.</p>
-      ) : (
-        view.originalUrl ? (
-          <figure class="original-preview">
-            <img src={view.originalUrl} alt="The file as the browser displays it" decoding="async" />
-            <figcaption class="fine-print">Shown as an ordinary image, read from the file you selected in this tab. It is not uploaded.</figcaption>
-          </figure>
-        ) : (
-          <p class="fine-print">No preview is shown{report.structurallyUnsound ? ' because the file structure is damaged' : ' because the declared size is above what this tool decodes'}.</p>
-        )
-      )}
-
-      <section aria-labelledby="findings-h" class="findings-section">
-        <h2 id="findings-h" class="section-title">
-          Findings
-        </h2>
-        <p class="legend">
-          Each finding says where it was read from and how sure the tool is. <em>Suspicious</em> means unusual or inconsistent, not harmful. Open “Evidence and limits” on any item for the location and caveats.
-        </p>
-        <details class="tech-details">
-          <summary>How to read the status labels</summary>
-          <dl class="status-legend">
-            {(['verified', 'inferred', 'suspicious', 'unsupported', 'unavailable'] as const).map((s) => (
-              <div key={s}>
-                <dt>{STATUS_LABEL[s]}</dt>
-                <dd>{STATUS_HELP[s]}</dd>
-              </div>
-            ))}
-          </dl>
-        </details>
-        <LazyDetails class="tech-details" summary="Where findings sit in the file (map of byte positions)">
-          <FileMap findings={report.findings} fileSize={report.fingerprint.size} activeId={activeId} />
-        </LazyDetails>
-        <FindingsByCategory findings={report.findings} activeId={activeId} onActive={setActiveId} />
-      </section>
-
-      <CoverageList coverage={report.coverage} />
-
-      {view.copy.kind === 'building' ? (
-        <section class="copy-panel" aria-labelledby="copy-h">
+      {view.copy.kind === 'building' && (
+        <section class="copy-panel" id="copy-section" aria-labelledby="copy-h">
           <h2 id="copy-h" class="section-title">
             Experimental copy
           </h2>
           <Progress stage={view.copy.stage} fraction={null} onCancel={actions.cancelCopy} label="Experimental copy" />
         </section>
-      ) : (
+      )}
+      {!building && optionsOpen && canCopy && !done && (
         <CopyPanel report={report} groups={groups} selected={view.selected} onToggle={actions.toggleGroup} onCreate={actions.makeCopy} busy={busy} />
       )}
       {view.copy.kind === 'error' && (
@@ -433,7 +456,8 @@ function ResultView({ view, busy, setView, actions }: ResultProps) {
           {view.copy.error.code === 'refused' ? '' : 'Choose the file again to try again.'}
         </p>
       )}
-      {view.copy.kind === 'done' && isImageFormat(report.format) && <VerificationView report={report} originalUrl={view.originalUrl} copy={view.copy.result} onDownload={actions.download} />}
+
+      <TechnicalReport report={report} name={view.name} open={reportOpen} onToggle={setReportOpen} />
 
       <div class="reset-row">
         <button type="button" class="button" onClick={actions.reset}>

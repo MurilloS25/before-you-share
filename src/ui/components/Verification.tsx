@@ -70,49 +70,16 @@ export function VerificationView({ report, originalUrl, copy, onDownload }: Prop
         <Preview url={copy.url} label="Experimental copy" dims={`${dims(v.copyReport)}, ${formatBytes(copy.size)}`} />
       </div>
 
-      <table class="compare-table">
-        <caption>Original and experimental copy compared</caption>
-        <thead>
-          <tr>
-            <th scope="col">Property</th>
-            <th scope="col">Original</th>
-            <th scope="col">Copy</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <th scope="row">File size</th>
-            <td>{formatBytes(report.fingerprint.size)}</td>
-            <td>{formatBytes(copy.size)}</td>
-          </tr>
-          <tr>
-            <th scope="row">Dimensions</th>
-            <td>{dims(report)}</td>
-            <td>{dims(v.copyReport)}</td>
-          </tr>
-          <tr>
-            <th scope="row">Orientation value</th>
-            <td>{report.orientation ?? 'None'}</td>
-            <td>{v.copyReport.orientation ?? 'None'}</td>
-          </tr>
-          <tr>
-            <th scope="row">Findings outside structure</th>
-            <td>{count(report)}</td>
-            <td>{count(v.copyReport)}</td>
-          </tr>
-        </tbody>
-      </table>
-
-      <h3 class="subhead">Checks</h3>
-      <ul class="checks">
-        {v.checks.map((c) => (
-          <li key={c.id} data-status={c.status}>
-            <span class="check-status">{CHECK_TEXT[c.status]}</span>
-            <span class="check-label">{c.label}</span>
-            <span class="check-detail">{c.detail}</span>
-          </li>
-        ))}
-      </ul>
+      <div class="download">
+        <p>
+          The copy will be saved as <strong class="user-text">{copy.downloadName}</strong>, a new file. Your original is not replaced or changed. Open and check
+          this copy before sharing it, and keep your original. This tool is experimental and cannot promise the copy is free of hidden information.
+        </p>
+        {!v.allPassed && <p class="fine-print">Download is disabled because a check did not pass.</p>}
+        <button type="button" class="button button-primary" onClick={onDownload} disabled={!v.allPassed}>
+          Download experimental copy
+        </button>
+      </div>
 
       <div class="delta">
         <div>
@@ -125,8 +92,8 @@ export function VerificationView({ report, originalUrl, copy, onDownload }: Prop
               id="list-removed"
               listClass="plain-list bullet"
               noun={['finding', 'findings']}
-              threshold={25}
-              initial={20}
+              threshold={8}
+              initial={6}
               render={(f) => (
                 <li key={f.id}>
                   {f.label}
@@ -146,8 +113,8 @@ export function VerificationView({ report, originalUrl, copy, onDownload }: Prop
               id="list-remaining"
               listClass="plain-list bullet"
               noun={['finding', 'findings']}
-              threshold={25}
-              initial={20}
+              threshold={8}
+              initial={6}
               render={(f) => (
                 <li key={f.id}>
                   {f.label}
@@ -159,6 +126,50 @@ export function VerificationView({ report, originalUrl, copy, onDownload }: Prop
         </div>
       </div>
       {v.newFindings.length > 0 && <p class="verdict" data-ok="false">The copy contains {plural(v.newFindings.length, 'finding')} that were not in the original.</p>}
+
+      <LazyDetails class="tech-details" summary={`All ${v.checks.length} verification checks (${v.checks.filter((c) => c.status === 'pass').length} passed)`} open={failed.length > 0}>
+        <ul class="checks">
+          {v.checks.map((c) => (
+            <li key={c.id} data-status={c.status}>
+              <span class="check-status">{CHECK_TEXT[c.status]}</span>
+              <span class="check-label">{c.label}</span>
+              <span class="check-detail">{c.detail}</span>
+            </li>
+          ))}
+        </ul>
+        <table class="compare-table">
+          <caption>Original and experimental copy compared</caption>
+          <thead>
+            <tr>
+              <th scope="col">Property</th>
+              <th scope="col">Original</th>
+              <th scope="col">Copy</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">File size</th>
+              <td>{formatBytes(report.fingerprint.size)}</td>
+              <td>{formatBytes(copy.size)}</td>
+            </tr>
+            <tr>
+              <th scope="row">Dimensions</th>
+              <td>{dims(report)}</td>
+              <td>{dims(v.copyReport)}</td>
+            </tr>
+            <tr>
+              <th scope="row">Orientation value</th>
+              <td>{report.orientation ?? 'None'}</td>
+              <td>{v.copyReport.orientation ?? 'None'}</td>
+            </tr>
+            <tr>
+              <th scope="row">Findings outside structure</th>
+              <td>{count(report)}</td>
+              <td>{count(v.copyReport)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </LazyDetails>
 
       <LazyDetails class="manifest" summary={`Mutation manifest (${plural(copy.manifest.entries.length, 'entry', 'entries')})`}>
         <div class="table-scroll" tabIndex={0} role="region" aria-label="Mutation manifest table, scrolls sideways on narrow screens">
@@ -187,18 +198,6 @@ export function VerificationView({ report, originalUrl, copy, onDownload }: Prop
         </table>
         </div>
       </LazyDetails>
-
-      <div class="download">
-        <h3 class="subhead">Download</h3>
-        <p>
-          The copy will be saved as <strong class="user-text">{copy.downloadName}</strong>, a new file. Your original is not replaced or changed.
-        </p>
-        <p class="fine-print">Open and check this copy before sharing it. Keep your original. This tool is experimental and cannot promise the copy is free of hidden information.</p>
-        {!v.allPassed && <p class="fine-print">Download is disabled because a check did not pass.</p>}
-        <button type="button" class="button button-primary" onClick={onDownload} disabled={!v.allPassed}>
-          Download experimental copy
-        </button>
-      </div>
     </section>
   );
 }

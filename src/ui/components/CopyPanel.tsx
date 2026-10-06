@@ -56,9 +56,9 @@ export function CopyPanel({ report, groups, selected, onToggle, onCreate, busy }
   const stayingByCat = new Map<Category, number>();
   for (const f of staying) stayingByCat.set(f.category, (stayingByCat.get(f.category) ?? 0) + 1);
   return (
-    <section class="copy-panel" aria-labelledby="copy-h">
+    <section class="copy-panel" id="copy-section" aria-labelledby="copy-h">
       <h2 id="copy-h" class="section-title">
-        Experimental copy
+        Choose what to remove
       </h2>
       <p class="section-lead">
         This builds a new file in memory from the original. Your original is never changed, and nothing is downloaded until you choose to.
@@ -114,7 +114,7 @@ export function CopyPanel({ report, groups, selected, onToggle, onCreate, busy }
         </p>
       </div>
       <button type="button" id="make-copy" class="button button-primary" disabled={busy || selected.length === 0} onClick={onCreate}>
-        Make experimental copy
+        Create copy with these choices
       </button>
     </section>
   );

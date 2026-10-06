@@ -1062,6 +1062,10 @@ th {
   gap: 0.6rem;
   margin-top: 0.8rem;
 }
+.share-buttons .button {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
 
 /* ---------- progressive disclosure */
 .tech-details {
@@ -1157,4 +1161,135 @@ h1[id] {
 ul > li[tabindex='-1']:focus {
   outline: 3px solid var(--focus);
   outline-offset: 3px;
+}
+
+/* ---------- simple result: preview beside the summary, one column on narrow screens */
+.simple-grid {
+  display: grid;
+  gap: 1.4rem 2.2rem;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  margin-top: 1.2rem;
+}
+@media (min-width: 56rem) {
+  .simple-grid:not(.simple-grid-after) {
+    grid-template-columns: minmax(12rem, 20rem) minmax(0, 1fr);
+  }
+}
+.simple-grid .before-share {
+  margin-top: 0;
+}
+.simple-preview .original-preview,
+.simple-preview .pdf-preview {
+  margin-top: 0;
+}
+.simple-preview .original-preview img {
+  max-height: 24rem;
+  max-width: 100%;
+}
+@media (max-width: 56rem) {
+  /* One column: keep the picture from pushing the summary and the actions far down the page. */
+  .simple-preview .original-preview img {
+    max-height: 14rem;
+  }
+}
+.simple-preview .pdf-preview {
+  padding-top: 0;
+  border-top: 0;
+}
+.preview-note {
+  margin: 0;
+}
+.file-line {
+  margin-top: 0.3rem;
+  color: var(--ink-2);
+  font-size: 1rem;
+}
+.file-line strong {
+  color: var(--ink);
+  font-family: var(--label);
+  font-weight: 600;
+}
+.share-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.9rem 0 0;
+  display: grid;
+  gap: 0.55rem;
+  max-width: 46rem;
+}
+.share-list li {
+  padding-left: 0.8rem;
+  border-left: 3px solid var(--film);
+  font-size: 1.02rem;
+  line-height: 1.45;
+}
+.share-list .share-detail {
+  display: block;
+  color: var(--ink-2);
+  font-size: 0.97rem;
+}
+.coverage-line {
+  margin-top: 0.9rem;
+  font-size: 1rem;
+  max-width: 46rem;
+}
+.coverage-line .link-button {
+  padding: 0.3rem 0;
+  min-height: 2.75rem;
+}
+.recommend {
+  max-width: 46rem;
+}
+.share-actions {
+  margin-top: 1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--rule);
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+/* ---------- technical report: closed until asked for */
+.tech-report {
+  margin-top: 2.2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--rule);
+}
+.report-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem 1.2rem;
+}
+.report-body > section:first-child,
+.report-body > .identification {
+  margin-top: 1.2rem;
+}
+
+/* ---------- copy result: previews and download first, detail folded */
+.verification {
+  margin-top: 1.2rem;
+  padding-top: 0;
+  border-top: 0;
+}
+.verification .compare {
+  margin-top: 1rem;
+}
+.verification .download {
+  margin-top: 1.2rem;
+}
+.verification .delta {
+  margin-top: 1.2rem;
+}
+.verification .tech-details {
+  margin-top: 1rem;
+}
+.verification .compare-table {
+  margin-top: 1rem;
+  table-layout: fixed;
+}
+.compare-table th,
+.compare-table td {
+  overflow-wrap: anywhere;
 }
