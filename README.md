@@ -14,8 +14,8 @@ telemetry, AI or third-party service.
 
 ## Status
 
-Experimental MVP, ready for manual acceptance (see [docs/ACCEPTANCE.md](docs/ACCEPTANCE.md)). It is not
-deployed.
+Experimental MVP, manually accepted and publicly deployed at
+[https://before-you-share-tool.vercel.app/](https://before-you-share-tool.vercel.app/).
 
 | Format | Inspection | Experimental copy |
 | --- | --- | --- |
@@ -91,7 +91,7 @@ See [docs/HARNESS.md](docs/HARNESS.md) for the exact commands and what each one 
 - [Formats and coverage](docs/FORMATS.md), [Limits](docs/LIMITS.md), [Known limitations](docs/LIMITATIONS.md)
 - [Threat model](docs/THREAT_MODEL.md), [Privacy model](docs/PRIVACY.md), [Sanitisation](docs/SANITIZATION.md), [Claims](docs/CLAIMS.md)
 - [Fixtures](docs/FIXTURES.md), [Dependencies](docs/DEPENDENCIES.md), [Browsers](docs/BROWSERS.md), [Design](docs/DESIGN.md)
-- [Acceptance guide](docs/ACCEPTANCE.md), [Deployment (deferred)](docs/DEPLOYMENT.md), [Research notes](docs/RESEARCH.md)
+- [Acceptance guide](docs/ACCEPTANCE.md), [Deployment](docs/DEPLOYMENT.md), [Research notes](docs/RESEARCH.md)
 
 ## Licence
 
